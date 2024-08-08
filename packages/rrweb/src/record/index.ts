@@ -96,12 +96,14 @@ function record<T = eventWithTime>(
     userTriggeredOnInput = false,
     collectFonts = false,
     inlineImages = false,
-    win = window,
+    win: _win = window,
     plugins,
     keepIframeSrcFn = () => false,
     ignoreCSSAttributes = new Set([]),
     errorHandler,
   } = options;
+
+  const win = _win as IWindow;
 
   registerErrorHandler(errorHandler);
 
@@ -181,7 +183,7 @@ function record<T = eventWithTime>(
       ? _slimDOMOptions
       : {};
 
-  polyfill(win as IWindow);
+  polyfill(win);
 
   let lastFullSnapshotEvent: eventWithTime;
   let incrementalSnapshotCount = 0;

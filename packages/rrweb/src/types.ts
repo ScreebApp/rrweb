@@ -69,7 +69,7 @@ export type recordOptions<T> = {
   userTriggeredOnInput?: boolean;
   collectFonts?: boolean;
   inlineImages?: boolean;
-  win?: IWindow;
+  win?: Window;
   plugins?: RecordPlugin[];
   // departed, please use sampling options
   mousemoveWait?: number;

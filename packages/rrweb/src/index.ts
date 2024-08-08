@@ -15,6 +15,7 @@ export {
   MouseInteractions,
   ReplayerEvents,
   type eventWithTime,
+  type listenerHandler,
 } from '@rrweb/types';
 
 // exports style.css from replay
