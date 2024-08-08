@@ -591,7 +591,7 @@ function record<T = eventWithTime>(
 
     const init = () => {
       takeFullSnapshot();
-      handlers.push(observe(document));
+      handlers.push(observe(win.document));
       recording = true;
     };
     if (
