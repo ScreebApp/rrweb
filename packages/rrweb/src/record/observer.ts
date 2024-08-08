@@ -191,6 +191,7 @@ function initMoveObserver({
 function initMouseInteractionObserver({
   mouseInteractionCb,
   doc,
+  win,
   mirror,
   blockClass,
   blockSelector,
@@ -285,7 +286,7 @@ function initMouseInteractionObserver({
     .forEach((eventKey: keyof typeof MouseInteractions) => {
       let eventName = toLowerCase(eventKey);
       const handler = getHandler(eventKey);
-      if (window.PointerEvent) {
+      if (win.PointerEvent) {
         switch (MouseInteractions[eventKey]) {
           case MouseInteractions.MouseDown:
           case MouseInteractions.MouseUp:
