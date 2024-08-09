@@ -352,7 +352,7 @@ export function initScrollObserver({
 }
 
 function initViewportResizeObserver(
-  { viewportResizeCb }: observerParam,
+  { viewportResizeCb, win: _win }: observerParam,
   { win }: { win: IWindow },
 ): listenerHandler {
   let lastH = -1;
@@ -360,8 +360,8 @@ function initViewportResizeObserver(
   const updateDimension = callbackWrapper(
     throttle(
       callbackWrapper(() => {
-        const height = getWindowHeight(win);
-        const width = getWindowWidth(win);
+        const height = getWindowHeight(_win);
+        const width = getWindowWidth(_win);
         if (lastH !== height || lastW !== width) {
           viewportResizeCb({
             width: Number(width),
