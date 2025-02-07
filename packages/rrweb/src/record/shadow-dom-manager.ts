@@ -71,7 +71,7 @@ export class ShadowDomManager implements ShadowDomManagerInterface {
   public init() {
     this.reset();
     // Patch 'attachShadow' to observe newly added shadow doms.
-    this.patchAttachShadow(Element, document);
+    this.patchAttachShadow(Element, this.bypassOptions.win.document);
   }
 
   public addShadowRoot(shadowRoot: ShadowRoot, doc: Document) {
