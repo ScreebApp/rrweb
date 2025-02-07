@@ -191,6 +191,7 @@ function initMoveObserver({
 function initMouseInteractionObserver({
   mouseInteractionCb,
   doc,
+  win,
   mirror,
   blockClass,
   blockSelector,
@@ -285,7 +286,7 @@ function initMouseInteractionObserver({
     .forEach((eventKey: keyof typeof MouseInteractions) => {
       let eventName = toLowerCase(eventKey);
       const handler = getHandler(eventKey);
-      if (window.PointerEvent) {
+      if (win.PointerEvent) {
         switch (MouseInteractions[eventKey]) {
           case MouseInteractions.MouseDown:
           case MouseInteractions.MouseUp:
@@ -351,7 +352,7 @@ export function initScrollObserver({
 }
 
 function initViewportResizeObserver(
-  { viewportResizeCb }: observerParam,
+  { viewportResizeCb, win: _win }: observerParam,
   { win }: { win: IWindow },
 ): listenerHandler {
   let lastH = -1;
@@ -359,8 +360,8 @@ function initViewportResizeObserver(
   const updateDimension = callbackWrapper(
     throttle(
       callbackWrapper(() => {
-        const height = getWindowHeight();
-        const width = getWindowWidth();
+        const height = getWindowHeight(_win);
+        const width = getWindowWidth(_win);
         if (lastH !== height || lastW !== width) {
           viewportResizeCb({
             width: Number(width),
@@ -537,17 +538,17 @@ type GroupingCSSRuleTypes =
   | typeof CSSSupportsRule
   | typeof CSSConditionRule;
 
-function getNestedCSSRulePositions(rule: CSSRule): number[] {
+function getNestedCSSRulePositions(win: IWindow, rule: CSSRule): number[] {
   const positions: number[] = [];
   function recurse(childRule: CSSRule, pos: number[]) {
     if (
-      (hasNestedCSSRule('CSSGroupingRule') &&
+      (hasNestedCSSRule(win, 'CSSGroupingRule') &&
         childRule.parentRule instanceof CSSGroupingRule) ||
-      (hasNestedCSSRule('CSSMediaRule') &&
+      (hasNestedCSSRule(win, 'CSSMediaRule') &&
         childRule.parentRule instanceof CSSMediaRule) ||
-      (hasNestedCSSRule('CSSSupportsRule') &&
+      (hasNestedCSSRule(win, 'CSSSupportsRule') &&
         childRule.parentRule instanceof CSSSupportsRule) ||
-      (hasNestedCSSRule('CSSConditionRule') &&
+      (hasNestedCSSRule(win, 'CSSConditionRule') &&
         childRule.parentRule instanceof CSSConditionRule)
     ) {
       const rules = Array.from(
@@ -743,20 +744,20 @@ function initStyleSheetObserver(
   const supportedNestedCSSRuleTypes: {
     [key: string]: GroupingCSSRuleTypes;
   } = {};
-  if (canMonkeyPatchNestedCSSRule('CSSGroupingRule')) {
+  if (canMonkeyPatchNestedCSSRule(win, 'CSSGroupingRule')) {
     supportedNestedCSSRuleTypes.CSSGroupingRule = win.CSSGroupingRule;
   } else {
     // Some browsers (Safari) don't support CSSGroupingRule
     // https://caniuse.com/?search=cssgroupingrule
     // fall back to monkey patching classes that would have inherited from CSSGroupingRule
 
-    if (canMonkeyPatchNestedCSSRule('CSSMediaRule')) {
+    if (canMonkeyPatchNestedCSSRule(win, 'CSSMediaRule')) {
       supportedNestedCSSRuleTypes.CSSMediaRule = win.CSSMediaRule;
     }
-    if (canMonkeyPatchNestedCSSRule('CSSConditionRule')) {
+    if (canMonkeyPatchNestedCSSRule(win, 'CSSConditionRule')) {
       supportedNestedCSSRuleTypes.CSSConditionRule = win.CSSConditionRule;
     }
-    if (canMonkeyPatchNestedCSSRule('CSSSupportsRule')) {
+    if (canMonkeyPatchNestedCSSRule(win, 'CSSSupportsRule')) {
       supportedNestedCSSRuleTypes.CSSSupportsRule = win.CSSSupportsRule;
     }
   }
@@ -801,7 +802,7 @@ function initStyleSheetObserver(
                   {
                     rule,
                     index: [
-                      ...getNestedCSSRulePositions(thisArg),
+                      ...getNestedCSSRulePositions(win, thisArg),
                       index || 0, // defaults to 0
                     ],
                   },
@@ -836,7 +837,7 @@ function initStyleSheetObserver(
                 id,
                 styleId,
                 removes: [
-                  { index: [...getNestedCSSRulePositions(thisArg), index] },
+                  { index: [...getNestedCSSRulePositions(win, thisArg), index] },
                 ],
               });
             }
@@ -963,7 +964,7 @@ function initStyleDeclarationObserver(
               priority,
             },
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            index: getNestedCSSRulePositions(thisArg.parentRule!),
+            index: getNestedCSSRulePositions(win, thisArg.parentRule!),
           });
         }
         return target.apply(thisArg, argumentsList);
@@ -999,7 +1000,7 @@ function initStyleDeclarationObserver(
               property,
             },
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            index: getNestedCSSRulePositions(thisArg.parentRule!),
+            index: getNestedCSSRulePositions(win, thisArg.parentRule!),
           });
         }
         return target.apply(thisArg, argumentsList);
@@ -1373,17 +1374,17 @@ type CSSGroupingProp =
   | 'CSSSupportsRule'
   | 'CSSConditionRule';
 
-function hasNestedCSSRule(prop: CSSGroupingProp): boolean {
-  return typeof window[prop] !== 'undefined';
+function hasNestedCSSRule(win: IWindow, prop: CSSGroupingProp): boolean {
+  return typeof win[prop] !== 'undefined';
 }
 
-function canMonkeyPatchNestedCSSRule(prop: CSSGroupingProp): boolean {
+function canMonkeyPatchNestedCSSRule(win: IWindow, prop: CSSGroupingProp): boolean {
   return Boolean(
-    typeof window[prop] !== 'undefined' &&
+    typeof win[prop] !== 'undefined' &&
       // Note: Generally, this check _shouldn't_ be necessary
       // However, in some scenarios (e.g. jsdom) this can sometimes fail, so we check for it here
-      window[prop].prototype &&
-      'insertRule' in window[prop].prototype &&
-      'deleteRule' in window[prop].prototype,
+      win[prop].prototype &&
+      'insertRule' in win[prop].prototype &&
+      'deleteRule' in win[prop].prototype,
   );
 }

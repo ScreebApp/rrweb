@@ -158,19 +158,19 @@ export function getWindowScroll(win: Window) {
   };
 }
 
-export function getWindowHeight(): number {
+export function getWindowHeight(win: Window): number {
   return (
-    window.innerHeight ||
-    (document.documentElement && document.documentElement.clientHeight) ||
-    (document.body && document.body.clientHeight)
+    win.innerHeight ||
+    (win.document.documentElement?.clientHeight) ||
+    (win.document.body?.clientHeight)
   );
 }
 
-export function getWindowWidth(): number {
+export function getWindowWidth(win: Window): number {
   return (
-    window.innerWidth ||
-    (document.documentElement && document.documentElement.clientWidth) ||
-    (document.body && document.body.clientWidth)
+    win.innerWidth ||
+    (win.document.documentElement?.clientWidth) ||
+    (win.document.body?.clientWidth)
   );
 }
 
