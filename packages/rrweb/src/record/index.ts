@@ -27,6 +27,7 @@ import {
   type scrollCallback,
   type canvasMutationParam,
   type adoptedStyleSheetParam,
+  type IWindow,
 } from '@rrweb/types';
 import type { CrossOriginIframeMessageEventContent } from '../types';
 import { IframeManager } from './iframe-manager';
@@ -95,23 +96,24 @@ function record<T = eventWithTime>(
     userTriggeredOnInput = false,
     collectFonts = false,
     inlineImages = false,
+    win: _win = window,
     plugins,
     keepIframeSrcFn = () => false,
     ignoreCSSAttributes = new Set([]),
     errorHandler,
   } = options;
 
+  const win = _win as IWindow;
+
   registerErrorHandler(errorHandler);
 
-  const inEmittingFrame = recordCrossOriginIframes
-    ? window.parent === window
-    : true;
+  const inEmittingFrame = recordCrossOriginIframes ? win.parent === win : true;
 
   let passEmitsToParent = false;
   if (!inEmittingFrame) {
     try {
       // throws if parent is cross-origin
-      if (window.parent.document) {
+      if (win.parent.document) {
         passEmitsToParent = false; // if parent is same origin we collect iframe events from the parent
       }
     } catch (e) {
@@ -181,7 +183,7 @@ function record<T = eventWithTime>(
       ? _slimDOMOptions
       : {};
 
-  polyfill();
+  polyfill(win);
 
   let lastFullSnapshotEvent: eventWithTime;
   let incrementalSnapshotCount = 0;
@@ -223,10 +225,10 @@ function record<T = eventWithTime>(
       const message: CrossOriginIframeMessageEventContent<T> = {
         type: 'rrweb',
         event: eventProcessor(e),
-        origin: window.location.origin,
+        origin: win.location.origin,
         isCheckout,
       };
-      window.parent.postMessage(message, '*');
+      win.parent.postMessage(message, '*');
     }
 
     if (e.type === EventType.FullSnapshot) {
@@ -319,7 +321,7 @@ function record<T = eventWithTime>(
   canvasManager = new CanvasManager({
     recordCanvas,
     mutationCb: wrappedCanvasMutationEmit,
-    win: window,
+    win,
     blockClass,
     blockSelector,
     mirror,
@@ -349,6 +351,7 @@ function record<T = eventWithTime>(
       canvasManager,
       keepIframeSrcFn,
       processedNodeManager,
+      win,
     },
     mirror,
   });
@@ -361,9 +364,9 @@ function record<T = eventWithTime>(
       {
         type: EventType.Meta,
         data: {
-          href: window.location.href,
-          width: getWindowWidth(),
-          height: getWindowHeight(),
+          href: win.location.href,
+          width: getWindowWidth(win),
+          height: getWindowHeight(win),
         },
       },
       isCheckout,
@@ -375,7 +378,7 @@ function record<T = eventWithTime>(
     shadowDomManager.init();
 
     mutationBuffers.forEach((buf) => buf.lock()); // don't allow any mirror modifications during snapshotting
-    const node = snapshot(document, {
+    const node = snapshot(win.document, {
       mirror,
       blockClass,
       blockSelector,
@@ -420,7 +423,7 @@ function record<T = eventWithTime>(
         type: EventType.FullSnapshot,
         data: {
           node,
-          initialOffset: getWindowScroll(window),
+          initialOffset: getWindowScroll(win),
         },
       },
       isCheckout,
@@ -428,10 +431,13 @@ function record<T = eventWithTime>(
     mutationBuffers.forEach((buf) => buf.unlock()); // generate & emit any mutations that happened during snapshotting, as can now apply against the newly built mirror
 
     // Some old browsers don't support adoptedStyleSheets.
-    if (document.adoptedStyleSheets && document.adoptedStyleSheets.length > 0)
+    if (
+      win.document.adoptedStyleSheets &&
+      win.document.adoptedStyleSheets.length > 0
+    )
       stylesheetManager.adoptStyleSheets(
-        document.adoptedStyleSheets,
-        mirror.getId(document),
+        win.document.adoptedStyleSheets,
+        mirror.getId(win.document),
       );
   };
 
@@ -539,6 +545,7 @@ function record<T = eventWithTime>(
           inlineImages,
           userTriggeredOnInput,
           collectFonts,
+          win,
           doc,
           maskInputFn,
           maskTextFn,
@@ -584,12 +591,12 @@ function record<T = eventWithTime>(
 
     const init = () => {
       takeFullSnapshot();
-      handlers.push(observe(document));
+      handlers.push(observe(win.document));
       recording = true;
     };
     if (
-      document.readyState === 'interactive' ||
-      document.readyState === 'complete'
+      win.document.readyState === 'interactive' ||
+      win.document.readyState === 'complete'
     ) {
       init();
     } else {
@@ -600,7 +607,7 @@ function record<T = eventWithTime>(
             data: {},
           });
           if (recordAfter === 'DOMContentLoaded') init();
-        }),
+        }, win.document),
       );
       handlers.push(
         on(
@@ -612,7 +619,7 @@ function record<T = eventWithTime>(
             });
             if (recordAfter === 'load') init();
           },
-          window,
+          win,
         ),
       );
     }
