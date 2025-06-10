@@ -1,6 +1,6 @@
 {
   "name": "@screeb/rrweb",
-  "version": "1.0.9",
+  "version": "1.0.14",
   "description": "record and replay the web",
   "scripts": {
     "prepare": "npm run prepack",
