@@ -62,9 +62,15 @@ export function discardPriorSnapshots(
   events: eventWithTime[],
   baselineTime: number,
 ): eventWithTime[] {
+  let goFullSnapshot = false;
   for (let idx = events.length - 1; idx >= 0; idx--) {
     const event = events[idx];
-    if (event.type === EventType.Meta) {
+    if (event.type === EventType.FullSnapshot) {
+      goFullSnapshot = true;
+    }
+
+    // Ensure having a full snapshot after the meta event
+    if (event.type === EventType.Meta && goFullSnapshot) {
       if (event.timestamp <= baselineTime) {
         return events.slice(idx);
       }

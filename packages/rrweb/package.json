@@ -1,6 +1,6 @@
 {
-  "name": "@sentry-internal/rrweb",
-  "version": "2.39.0",
+  "name": "@screeb/rrweb",
+  "version": "1.0.15",
   "description": "record and replay the web",
   "scripts": {
     "retest": "vitest run --exclude test/benchmark",
