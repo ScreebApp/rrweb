@@ -1203,6 +1203,11 @@ export function serializeNodeWithId(
       node: serializedElementNodeWithId,
     ) => unknown;
     iframeLoadTimeout?: number;
+    onBlockedImageLoad?: (
+      imageEl: HTMLImageElement,
+      node: serializedElementNodeWithId,
+      rect: DOMRect,
+    ) => unknown;
     onStylesheetLoad?: (
       linkNode: HTMLLinkElement,
       node: serializedElementNodeWithId,
@@ -1234,6 +1239,7 @@ export function serializeNodeWithId(
     onSerialize,
     onIframeLoad,
     iframeLoadTimeout = 5000,
+    onBlockedImageLoad,
     onStylesheetLoad,
     stylesheetLoadTimeout = 5000,
     keepIframeSrcFn = () => false,
@@ -1298,8 +1304,6 @@ export function serializeNodeWithId(
   let recordChild = !skipChild;
   if (serializedNode.type === NodeType.Element) {
     recordChild = recordChild && !serializedNode.needBlock;
-    // this property was not needed in replay side
-    delete serializedNode.needBlock;
     const shadowRoot = (n as HTMLElement).shadowRoot;
     if (shadowRoot && isNativeShadowDom(shadowRoot))
       serializedNode.isShadowHost = true;
@@ -1342,6 +1346,7 @@ export function serializeNodeWithId(
       onSerialize,
       onIframeLoad,
       iframeLoadTimeout,
+      onBlockedImageLoad,
       onStylesheetLoad,
       stylesheetLoadTimeout,
       keepIframeSrcFn,
@@ -1377,12 +1382,7 @@ export function serializeNodeWithId(
   if (
     serializedNode.type === NodeType.Element &&
     serializedNode.tagName === 'iframe' &&
-    !_isBlockedElement(
-      n as HTMLIFrameElement,
-      blockClass,
-      blockSelector,
-      unblockSelector,
-    )
+    !serializedNode.needBlock
   ) {
     onceIframeLoaded(
       n as HTMLIFrameElement,
@@ -1429,6 +1429,35 @@ export function serializeNodeWithId(
       },
       iframeLoadTimeout,
     );
+  }
+
+  if (
+    serializedNode.type === NodeType.Element &&
+    serializedNode.tagName === 'img' &&
+    !(n as HTMLImageElement).complete &&
+    serializedNode.needBlock
+  ) {
+    const image = n as HTMLImageElement;
+    const updateImageDimensions = () => {
+      // Check if the element is still in the DOM and not already complete
+      if (image.isConnected && !image.complete && onBlockedImageLoad) {
+        try {
+          const rect = image.getBoundingClientRect();
+          // Only proceed if we have valid dimensions
+          if (rect.width > 0 && rect.height > 0) {
+            onBlockedImageLoad(image, serializedNode, rect);
+          }
+        } catch (error) {
+          // Silently handle errors from getBoundingClientRect
+        }
+      }
+      image.removeEventListener('load', updateImageDimensions);
+    };
+
+    // Only add listener if element is still in DOM
+    if (image.isConnected) {
+      image.addEventListener('load', updateImageDimensions);
+    }
   }
 
   // <link rel=stylesheet href=...>
@@ -1487,6 +1516,11 @@ export function serializeNodeWithId(
     );
   }
 
+  if (serializedNode.type === NodeType.Element) {
+    // this property was not needed in replay side
+    delete serializedNode.needBlock;
+  }
+
   return serializedNode;
 }
 
@@ -1518,6 +1552,11 @@ function snapshot(
       node: serializedElementNodeWithId,
     ) => unknown;
     iframeLoadTimeout?: number;
+    onBlockedImageLoad?: (
+      imageEl: HTMLImageElement,
+      node: serializedElementNodeWithId,
+      rect: DOMRect,
+    ) => unknown;
     onStylesheetLoad?: (
       linkNode: HTMLLinkElement,
       node: serializedElementNodeWithId,
@@ -1549,6 +1588,7 @@ function snapshot(
     onSerialize,
     onIframeLoad,
     iframeLoadTimeout,
+    onBlockedImageLoad,
     onStylesheetLoad,
     stylesheetLoadTimeout,
     keepIframeSrcFn = () => false,
@@ -1618,6 +1658,7 @@ function snapshot(
     onSerialize,
     onIframeLoad,
     iframeLoadTimeout,
+    onBlockedImageLoad,
     onStylesheetLoad,
     stylesheetLoadTimeout,
     keepIframeSrcFn,
