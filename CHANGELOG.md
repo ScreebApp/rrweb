@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.36.0
+
+### Various fixes & improvements
+
+- feat(snapshot): Update blocked image dimensions after load (#246) by @billyvg
+- fix: Check for `node.childNodes` before accessing them (#244) by @mydea
+
 ## 2.35.0
 
 ### Various fixes & improvements
