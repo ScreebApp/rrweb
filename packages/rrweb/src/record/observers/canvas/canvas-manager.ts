@@ -29,6 +29,10 @@ type pendingCanvasMutationsMap = Map<
   HTMLCanvasElement,
   canvasMutationWithType[]
 >;
+type MaxCanvasSize = [number, number];
+type SnapshotOptions = {
+  skipRequestAnimationFrame?: boolean;
+};
 
 export interface CanvasManagerInterface {
   reset(): void;
@@ -36,7 +40,7 @@ export interface CanvasManagerInterface {
   unfreeze(): void;
   lock(): void;
   unlock(): void;
-  snapshot(canvasElement?: HTMLCanvasElement): void;
+  snapshot(canvasElement?: HTMLCanvasElement, options?: SnapshotOptions): void;
   addWindow(win: IWindow): void;
   addShadowRoot(shadowRoot: ShadowRoot): void;
   resetShadowRoots(): void;
@@ -50,7 +54,7 @@ export interface CanvasManagerConstructorOptions {
   blockClass: blockClass;
   blockSelector: string | null;
   unblockSelector: string | null;
-  maxCanvasSize?: [number, number] | null;
+  maxCanvasSize?: MaxCanvasSize | null;
   mirror: Mirror;
   dataURLOptions: DataURLOptions;
   errorHandler?: ErrorHandler;
@@ -145,16 +149,13 @@ export class CanvasManager implements CanvasManagerInterface {
 
   constructor(options: CanvasManagerConstructorOptions) {
     const {
+      enableManualSnapshot,
       sampling = 'all',
       win,
-      blockClass,
-      blockSelector,
-      unblockSelector,
-      maxCanvasSize,
       recordCanvas,
-      dataURLOptions,
       errorHandler,
     } = options;
+    options.sampling = sampling;
     this.mutationCb = options.mutationCb;
     this.mirror = options.mirror;
     this.options = options;
@@ -164,30 +165,23 @@ export class CanvasManager implements CanvasManagerInterface {
     }
     if (
       (recordCanvas && typeof sampling === 'number') ||
-      options.enableManualSnapshot
+      enableManualSnapshot
     ) {
       this.worker = this.initFPSWorker();
     }
     this.addWindow(win);
-    if (options.enableManualSnapshot) {
+
+    if (enableManualSnapshot) {
       return;
     }
+
     callbackWrapper(() => {
       if (recordCanvas && sampling === 'all') {
         this.startRAFTimestamping();
         this.startPendingCanvasMutationFlusher();
       }
       if (recordCanvas && typeof sampling === 'number') {
-        this.initCanvasFPSObserver(
-          sampling,
-          blockClass,
-          blockSelector,
-          unblockSelector,
-          maxCanvasSize,
-          {
-            dataURLOptions,
-          },
-        );
+        this.initCanvasFPSObserver();
       }
     })();
   }
@@ -241,6 +235,19 @@ export class CanvasManager implements CanvasManagerInterface {
 
   public resetShadowRoots() {
     this.shadowDoms = new Set();
+  }
+
+  public snapshot(
+    canvasElement?: HTMLCanvasElement,
+    options?: SnapshotOptions,
+  ): void {
+    if (options?.skipRequestAnimationFrame) {
+      this.takeSnapshot(performance.now(), true, canvasElement);
+      return;
+    }
+    onRequestAnimationFrame((timestamp) =>
+      this.takeSnapshot(timestamp, true, canvasElement),
+    );
   }
 
   private initFPSWorker(): Worker {
@@ -305,28 +312,25 @@ export class CanvasManager implements CanvasManagerInterface {
     this.pendingCanvasMutations.get(target)!.push(mutation);
   };
 
-  private initCanvasFPSObserver(
-    fps: number,
-    blockClass: blockClass,
-    blockSelector: string | null,
-    unblockSelector: string | null,
-    maxCanvasSize: [number, number] | null | undefined,
-    options: {
-      dataURLOptions: DataURLOptions;
-    },
-  ) {
-    const rafId = this.takeSnapshot(
-      false,
-      fps,
-      blockClass,
-      blockSelector,
-      unblockSelector,
-      maxCanvasSize,
-      options.dataURLOptions,
-    );
+  private initCanvasFPSObserver() {
+    let rafId: number;
+
+    if (!this.windows.length && !this.shadowDoms.size) {
+      // If these are empty, then we won't be able to find any canvases to snapshot, so nothing to do here.
+      return;
+    }
+
+    const rafCallback = (timestamp: DOMHighResTimeStamp) => {
+      this.takeSnapshot(timestamp, false);
+      rafId = onRequestAnimationFrame(rafCallback);
+    };
+
+    rafId = onRequestAnimationFrame(rafCallback);
 
     this.restoreHandlers.push(() => {
-      cancelAnimationFrame(rafId);
+      if (rafId) {
+        cancelAnimationFrame(rafId);
+      }
     });
   }
 
@@ -367,164 +371,150 @@ export class CanvasManager implements CanvasManagerInterface {
     });
   }
 
-  public snapshot(canvasElement?: HTMLCanvasElement) {
-    const { options } = this;
-    const rafId = this.takeSnapshot(
-      true,
-      options.sampling === 'all' ? 2 : options.sampling || 2,
-      options.blockClass,
-      options.blockSelector,
-      options.unblockSelector,
-      options.maxCanvasSize,
-      options.dataURLOptions,
-      canvasElement,
-    );
-
-    this.restoreHandlers.push(() => {
-      cancelAnimationFrame(rafId);
-    });
-  }
-
-  private takeSnapshot(
-    isManualSnapshot: boolean,
-    fps: number,
+  /**
+   * Returns all `canvas` elements that are not blocked by the given selectors. Searches all windows and shadow roots.
+   */
+  private getCanvasElements(
     blockClass: blockClass,
     blockSelector: string | null,
     unblockSelector: string | null,
-    maxCanvasSize: [number, number] | null | undefined,
-    dataURLOptions: DataURLOptions,
+  ): HTMLCanvasElement[] {
+    const matchedCanvas: HTMLCanvasElement[] = [];
+
+    const searchCanvas = (root: Document | ShadowRoot) => {
+      root.querySelectorAll('canvas').forEach((canvas) => {
+        if (
+          !isBlocked(canvas, blockClass, blockSelector, unblockSelector, true)
+        ) {
+          matchedCanvas.push(canvas);
+        }
+      });
+    };
+
+    for (const item of this.windows) {
+      const window = item.deref();
+      let _document: Document | false | undefined;
+
+      try {
+        _document = window && window.document;
+      } catch {
+        // Accessing `window.document` can throw a security error:
+        // "Failed to read a named property 'document' from 'Window': An
+        // attempt was made to break through the security policy of the user
+        // agent."
+      }
+
+      if (_document) {
+        // This is not included in the `try` block above in case `searchCanvas()` throws
+        searchCanvas(_document);
+      }
+    }
+
+    // Search in shadow roots
+    for (const item of this.shadowDoms) {
+      const shadowRoot = item.deref();
+      if (shadowRoot) {
+        searchCanvas(shadowRoot);
+      }
+    }
+
+    return matchedCanvas;
+  }
+
+  /**
+   * Takes a snapshot of the provided canvas element, or will search all windows/shadow roots for canvases. Will self-throttle based on `options.sampling`.
+   *
+   * @returns `true` if the snapshot was taken, `false` if it was throttled.
+   */
+  private takeSnapshot(
+    timestamp: DOMHighResTimeStamp,
+    isManualSnapshot: boolean,
     canvasElement?: HTMLCanvasElement,
   ) {
+    const {
+      sampling,
+      blockClass,
+      blockSelector,
+      unblockSelector,
+      dataURLOptions,
+      maxCanvasSize,
+    } = this.options;
+    const fps = sampling === 'all' ? 2 : sampling || 2;
     const timeBetweenSnapshots = 1000 / fps;
-    let rafId: number;
+    const shouldThrottle =
+      this.lastSnapshotTime &&
+      timestamp - this.lastSnapshotTime < timeBetweenSnapshots;
 
-    const getCanvas = (
-      canvasElement?: HTMLCanvasElement,
-    ): HTMLCanvasElement[] => {
-      if (canvasElement) {
-        return [canvasElement];
-      }
+    if (shouldThrottle) {
+      return false;
+    }
 
-      const matchedCanvas: HTMLCanvasElement[] = [];
+    this.lastSnapshotTime = timestamp;
+    const canvases = canvasElement
+      ? [canvasElement]
+      : this.getCanvasElements(blockClass, blockSelector, unblockSelector);
 
-      const searchCanvas = (root: Document | ShadowRoot) => {
-        root.querySelectorAll('canvas').forEach((canvas) => {
-          if (
-            !isBlocked(canvas, blockClass, blockSelector, unblockSelector, true)
-          ) {
-            matchedCanvas.push(canvas);
-          }
-        });
-      };
+    // Process all canvases concurrently
+    canvases.forEach((canvas) => {
+      const id = this.mirror.getId(canvas);
 
-      for (const item of this.windows) {
-        const window = item.deref();
-        let _document: Document | false | undefined;
-
-        try {
-          _document = window && window.document;
-        } catch {
-          // Accesing `window.document` can throw a security error:
-          // "Failed to read a named property 'document' from 'Window': An
-          // attempt was made to break through the security policy of the user
-          // agent."
-        }
-
-        if (_document) {
-          // This is not included in the `try` block above in case `searchCanvas()` throws
-          searchCanvas(_document);
-        }
-      }
-
-      for (const item of this.shadowDoms) {
-        const shadowRoot = item.deref();
-        if (shadowRoot) {
-          searchCanvas(shadowRoot);
-        }
-      }
-      return matchedCanvas;
-    };
-
-    const takeCanvasSnapshots = (timestamp: DOMHighResTimeStamp) => {
-      if (!this.windows.length) {
-        // exit loop if windows list is empty
-        return;
-      }
+      // Check if canvas is valid and not already being processed
       if (
-        this.lastSnapshotTime &&
-        timestamp - this.lastSnapshotTime < timeBetweenSnapshots
+        !this.mirror.hasNode(canvas) ||
+        !canvas.width ||
+        !canvas.height ||
+        this.snapshotInProgressMap.get(id)
       ) {
-        rafId = onRequestAnimationFrame(takeCanvasSnapshots);
         return;
       }
-      this.lastSnapshotTime = timestamp;
 
-      getCanvas(canvasElement).forEach((canvas: HTMLCanvasElement) => {
-        if (!this.mirror.hasNode(canvas)) {
-          return;
+      this.snapshotInProgressMap.set(id, true);
+
+      // Handle WebGL context preservation
+      if (
+        !isManualSnapshot &&
+        ['webgl', 'webgl2'].includes((canvas as ICanvas).__context)
+      ) {
+        const context = canvas.getContext((canvas as ICanvas).__context) as
+          | WebGLRenderingContext
+          | WebGL2RenderingContext
+          | null;
+
+        if (context?.getContextAttributes()?.preserveDrawingBuffer === false) {
+          // Hack to load canvas back into memory so `createImageBitmap` can grab it's contents.
+          // Context: https://twitter.com/Juice10/status/1499775271758704643
+          // Preferably we set `preserveDrawingBuffer` to true, but that's not always possible,
+          // especially when canvas is loaded before rrweb.
+          // This hack can wipe the background color of the canvas in the (unlikely) event that
+          // the canvas background was changed but clear was not called directly afterwards.
+          // Example of this hack having negative side effect: https://visgl.github.io/react-map-gl/examples/layers
+          context.clear(context.COLOR_BUFFER_BIT);
         }
-        const id = this.mirror.getId(canvas);
-        if (this.snapshotInProgressMap.get(id)) return;
-
-        // Don't do anything if canvas height/width is 0, otherwise causes
-        // `createImageBitmap()` to throw
-        if (!canvas.width || !canvas.height) return;
-
-        this.snapshotInProgressMap.set(id, true);
-        if (
-          !isManualSnapshot &&
-          ['webgl', 'webgl2'].includes((canvas as ICanvas).__context)
-        ) {
-          // if the canvas hasn't been modified recently,
-          // its contents won't be in memory and `createImageBitmap`
-          // will return a transparent imageBitmap
-
-          const context = canvas.getContext((canvas as ICanvas).__context) as
-            | WebGLRenderingContext
-            | WebGL2RenderingContext
-            | null;
-          if (
-            context?.getContextAttributes()?.preserveDrawingBuffer === false
-          ) {
-            // Hack to load canvas back into memory so `createImageBitmap` can grab it's contents.
-            // Context: https://twitter.com/Juice10/status/1499775271758704643
-            // Preferably we set `preserveDrawingBuffer` to true, but that's not always possible,
-            // especially when canvas is loaded before rrweb.
-            // This hack can wipe the background color of the canvas in the (unlikely) event that
-            // the canvas background was changed but clear was not called directly afterwards.
-            // Example of this hack having negative side effect: https://visgl.github.io/react-map-gl/examples/layers
-            context.clear(context.COLOR_BUFFER_BIT);
-          }
-        }
-
-        createImageBitmap(canvas)
-          .then((bitmap) => {
-            this.worker?.postMessage(
-              {
-                id,
-                bitmap,
-                width: canvas.width,
-                height: canvas.height,
-                dataURLOptions,
-                maxCanvasSize,
-              },
-              [bitmap],
-            );
-          })
-          .catch((error) => {
-            callbackWrapper(() => {
-              throw error;
-            })();
-          });
-      });
-
-      if (!isManualSnapshot) {
-        rafId = onRequestAnimationFrame(takeCanvasSnapshots);
       }
-    };
 
-    rafId = onRequestAnimationFrame(takeCanvasSnapshots);
-    return rafId;
+      createImageBitmap(canvas)
+        .then((bitmap) => {
+          this.worker?.postMessage(
+            {
+              id,
+              bitmap,
+              width: canvas.width,
+              height: canvas.height,
+              dataURLOptions,
+              maxCanvasSize,
+            },
+            [bitmap],
+          );
+        })
+        .catch((error) => {
+          callbackWrapper(() => {
+            this.snapshotInProgressMap.delete(id);
+            throw error;
+          })();
+        });
+    });
+
+    return true;
   }
 
   private startPendingCanvasMutationFlusher() {
