@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.37.0
+
+### Various fixes & improvements
+
+- feat(replay): Manual snapshots can skip rAF (#247) by @billyvg
+
 ## 2.36.0
 
 ### Various fixes & improvements
