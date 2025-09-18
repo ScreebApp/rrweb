@@ -41,7 +41,7 @@ import {
   type PlayerMachineState,
   type SpeedMachineState,
 } from './machine';
-import type { playerConfig, missingNodeMap } from '../types';
+import type { playerConfig, missingNodeMap, EventIndexCache } from '../types';
 import {
   EventType,
   IncrementalSource,
@@ -198,6 +198,9 @@ export class Replayer {
   // Similar to the reason for constructedStyleMutations.
   private adoptedStyleSheets: adoptedStyleSheetData[] = [];
 
+  // Cache for optimized event index lookups during playback.
+  private eventIndexCache: EventIndexCache;
+
   constructor(
     events: Array<eventWithTime | string>,
     config?: Partial<playerConfig>,
@@ -230,6 +233,12 @@ export class Replayer {
     this.getCastFn = this.getCastFn.bind(this);
     this.applyEventsSynchronously = this.applyEventsSynchronously.bind(this);
     this.emitter.on(ReplayerEvents.Resize, this.handleResize as Handler);
+
+    this.eventIndexCache = {
+      lastTime: -1,
+      lastIndex: 0,
+      maxDrift: 3000 // 3 second max drift from the current playback position.
+    };
 
     this.setupDom();
 
@@ -631,6 +640,94 @@ export class Replayer {
    */
   public resetCache() {
     this.cache = createCache();
+  }
+
+  public resetFastForward() {
+    this.backToNormal();
+  }
+
+  private binarySearchEventIndex(events: eventWithTime[], currentEventTime: number): number {
+    let left = 0, right = events.length - 1;
+    let result = -1;
+
+    while (left <= right) {
+      const mid = Math.floor((left + right) / 2);
+      if (events[mid].timestamp <= currentEventTime) {
+        result = mid;
+        left = mid + 1;
+      } else {
+        right = mid - 1;
+      }
+    }
+    return result;
+  }
+
+  private getCachedEventIndex(events: eventWithTime[], currentEventTime: number): number {
+    const cache = this.eventIndexCache;
+    if (cache.lastIndex < events.length) {
+      const cachedEvent = events[cache.lastIndex];
+      if (cachedEvent) {
+        const eventTimeDiff = Math.abs(cachedEvent.timestamp - currentEventTime);
+        if (eventTimeDiff <= cache.maxDrift) {
+          return cache.lastIndex;
+        }
+      }
+    }
+    return -1;
+  }
+
+  public refreshSkipState(): void {
+    if (!this.config.skipInactive) {
+      return;
+    }
+
+    // Clear stale state
+    this.nextUserInteractionEvent = null;
+
+    // Get current time and convert to event-relative time
+    const currentTime = this.getCurrentTime();
+    const events = this.service.state.context.events;
+    const firstEvent = events[0];
+    if (!firstEvent) {
+      return;
+    }
+    const currentEventTime = firstEvent.timestamp + currentTime;
+
+    // Try cache first for nearby positions (O(1))
+    let currentEventIndex = this.getCachedEventIndex(events, currentEventTime);
+    if (currentEventIndex === -1) {
+      // Cache miss - use binary search (O(log n))
+      currentEventIndex = this.binarySearchEventIndex(events, currentEventTime);
+      this.eventIndexCache.lastTime = currentEventTime;
+      this.eventIndexCache.lastIndex = currentEventIndex;
+    }
+
+    if (currentEventIndex === -1) {
+      return;
+    }
+
+    // Find next user interaction event starting from the current event index
+    const currentEvent = events[currentEventIndex];
+    const threshold = this.config.inactivePeriodThreshold * this.speedService.state.context.timer.speed;
+    for (let i = currentEventIndex + 1; i < events.length; i++) {
+      const event = events[i];
+      if (this.isUserInteraction(event)) {
+        const gapTime = event.timestamp - currentEvent.timestamp;
+
+        if (gapTime > threshold) {
+          this.nextUserInteractionEvent = event;
+          const payload = {
+            speed: Math.min(
+              Math.round(gapTime / SKIP_TIME_INTERVAL),
+              this.config.maxSpeed
+            )
+          };
+          this.speedService.send({ type: "FAST_FORWARD", payload });
+          this.emitter.emit(ReplayerEvents.SkipStart, payload);
+        }
+        break;
+      }
+    }
   }
 
   private setupDom() {
