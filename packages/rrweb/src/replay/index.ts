@@ -237,7 +237,7 @@ export class Replayer {
     this.eventIndexCache = {
       lastTime: -1,
       lastIndex: 0,
-      maxDrift: 3000 // 3 second max drift from the current playback position.
+      maxDrift: 3000, // 3 second max drift from the current playback position.
     };
 
     this.setupDom();
@@ -646,8 +646,12 @@ export class Replayer {
     this.backToNormal();
   }
 
-  private binarySearchEventIndex(events: eventWithTime[], currentEventTime: number): number {
-    let left = 0, right = events.length - 1;
+  private binarySearchEventIndex(
+    events: eventWithTime[],
+    currentEventTime: number,
+  ): number {
+    let left = 0,
+      right = events.length - 1;
     let result = -1;
 
     while (left <= right) {
@@ -662,15 +666,18 @@ export class Replayer {
     return result;
   }
 
-  private getCachedEventIndex(events: eventWithTime[], currentEventTime: number): number {
+  private getCachedEventIndex(
+    events: eventWithTime[],
+    currentEventTime: number,
+  ): number {
     const cache = this.eventIndexCache;
     if (cache.lastIndex < events.length) {
       const cachedEvent = events[cache.lastIndex];
-      if (cachedEvent) {
-        const eventTimeDiff = Math.abs(cachedEvent.timestamp - currentEventTime);
-        if (eventTimeDiff <= cache.maxDrift) {
-          return cache.lastIndex;
-        }
+      if (
+        cachedEvent &&
+        Math.abs(cachedEvent.timestamp - currentEventTime) <= cache.maxDrift
+      ) {
+        return cache.lastIndex;
       }
     }
     return -1;
@@ -708,7 +715,9 @@ export class Replayer {
 
     // Find next user interaction event starting from the current event index
     const currentEvent = events[currentEventIndex];
-    const threshold = this.config.inactivePeriodThreshold * this.speedService.state.context.timer.speed;
+    const threshold =
+      this.config.inactivePeriodThreshold *
+      this.speedService.state.context.timer.speed;
     for (let i = currentEventIndex + 1; i < events.length; i++) {
       const event = events[i];
       if (this.isUserInteraction(event)) {
@@ -719,10 +728,10 @@ export class Replayer {
           const payload = {
             speed: Math.min(
               Math.round(gapTime / SKIP_TIME_INTERVAL),
-              this.config.maxSpeed
-            )
+              this.config.maxSpeed,
+            ),
           };
-          this.speedService.send({ type: "FAST_FORWARD", payload });
+          this.speedService.send({ type: 'FAST_FORWARD', payload });
           this.emitter.emit(ReplayerEvents.SkipStart, payload);
         }
         break;
