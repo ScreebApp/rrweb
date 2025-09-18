@@ -646,7 +646,7 @@ export class Replayer {
     this.backToNormal();
   }
 
-  private binarySearchEventIndex(
+  public binarySearchEventIndex(
     events: eventWithTime[],
     currentEventTime: number,
   ): number {
@@ -666,7 +666,7 @@ export class Replayer {
     return result;
   }
 
-  private getCachedEventIndex(
+  public getCachedEventIndex(
     events: eventWithTime[],
     currentEventTime: number,
   ): number {
