@@ -692,13 +692,12 @@ export class Replayer {
     this.nextUserInteractionEvent = null;
 
     // Get current time and convert to event-relative time
-    const currentTime = this.getCurrentTime();
     const events = this.service.state.context.events;
     const firstEvent = events[0];
     if (!firstEvent) {
       return;
     }
-    const currentEventTime = firstEvent.timestamp + currentTime;
+    const currentEventTime = firstEvent.timestamp + this.getCurrentTime();
 
     // Try cache first for nearby positions (O(1))
     let currentEventIndex = this.getCachedEventIndex(events, currentEventTime);
