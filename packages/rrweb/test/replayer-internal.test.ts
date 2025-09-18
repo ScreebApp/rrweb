@@ -8,7 +8,7 @@ import type { eventWithTime } from '@sentry-internal/rrweb-types';
 
 describe('Replayer Internal Methods', () => {
   let replayer: Replayer;
-  
+
   beforeEach(() => {
     const events: eventWithTime[] = [
       {
@@ -31,7 +31,7 @@ describe('Replayer Internal Methods', () => {
 
   describe('binarySearchEventIndex', () => {
     const createTestEvents = (timestamps: number[]): eventWithTime[] => {
-      return timestamps.map(timestamp => ({
+      return timestamps.map((timestamp) => ({
         type: EventType.Load,
         data: {},
         timestamp,
@@ -40,31 +40,93 @@ describe('Replayer Internal Methods', () => {
 
     describe('edge cases', () => {
       it.each([
-        { timestamps: [], currentTime: 1000, expected: -1, description: 'empty array' },
-        { timestamps: [2000], currentTime: 1000, expected: -1, description: 'single event before timestamp' },
-        { timestamps: [1000], currentTime: 1000, expected: 0, description: 'single event at timestamp' },
-        { timestamps: [1000], currentTime: 2000, expected: 0, description: 'single event after timestamp' },
-        { timestamps: [2000, 3000, 4000], currentTime: 1000, expected: -1, description: 'before all events' },
-        { timestamps: [1000, 2000, 3000], currentTime: 5000, expected: 2, description: 'after all events' },
-      ])('should handle $description', ({ timestamps, currentTime, expected }) => {
-        const events = timestamps.length ? createTestEvents(timestamps) : [];
-        const result = replayer.binarySearchEventIndex(events, currentTime);
-        expect(result).toBe(expected);
-      });
+        {
+          timestamps: [],
+          currentTime: 1000,
+          expected: -1,
+          description: 'empty array',
+        },
+        {
+          timestamps: [2000],
+          currentTime: 1000,
+          expected: -1,
+          description: 'single event before timestamp',
+        },
+        {
+          timestamps: [1000],
+          currentTime: 1000,
+          expected: 0,
+          description: 'single event at timestamp',
+        },
+        {
+          timestamps: [1000],
+          currentTime: 2000,
+          expected: 0,
+          description: 'single event after timestamp',
+        },
+        {
+          timestamps: [2000, 3000, 4000],
+          currentTime: 1000,
+          expected: -1,
+          description: 'before all events',
+        },
+        {
+          timestamps: [1000, 2000, 3000],
+          currentTime: 5000,
+          expected: 2,
+          description: 'after all events',
+        },
+      ])(
+        'should handle $description',
+        ({ timestamps, currentTime, expected }) => {
+          const events = timestamps.length ? createTestEvents(timestamps) : [];
+          const result = replayer.binarySearchEventIndex(events, currentTime);
+          expect(result).toBe(expected);
+        },
+      );
     });
 
     describe('normal cases', () => {
       it.each([
-        { timestamps: [1000, 2000, 3000, 4000, 5000], currentTime: 3000, expected: 2, description: 'exact timestamp match in middle of array' },
-        { timestamps: [1000, 2000, 4000, 5000], currentTime: 3500, expected: 1, description: 'last event at or before timestamp when between events' },
-        { timestamps: [1000, 2000, 2000, 2000, 5000], currentTime: 2000, expected: 3, description: 'multiple events with same timestamp (returns last occurrence)' },
-        { timestamps: [1000, 2000, 3000, 4000], currentTime: 1000, expected: 0, description: 'correct index for first event' },
-        { timestamps: [1000, 2000, 3000, 4000], currentTime: 4000, expected: 3, description: 'correct index for last event' },
-      ])('should find $description', ({ timestamps, currentTime, expected }) => {
-        const events = createTestEvents(timestamps);
-        const result = replayer.binarySearchEventIndex(events, currentTime);
-        expect(result).toBe(expected);
-      });
+        {
+          timestamps: [1000, 2000, 3000, 4000, 5000],
+          currentTime: 3000,
+          expected: 2,
+          description: 'exact timestamp match in middle of array',
+        },
+        {
+          timestamps: [1000, 2000, 4000, 5000],
+          currentTime: 3500,
+          expected: 1,
+          description: 'last event at or before timestamp when between events',
+        },
+        {
+          timestamps: [1000, 2000, 2000, 2000, 5000],
+          currentTime: 2000,
+          expected: 3,
+          description:
+            'multiple events with same timestamp (returns last occurrence)',
+        },
+        {
+          timestamps: [1000, 2000, 3000, 4000],
+          currentTime: 1000,
+          expected: 0,
+          description: 'correct index for first event',
+        },
+        {
+          timestamps: [1000, 2000, 3000, 4000],
+          currentTime: 4000,
+          expected: 3,
+          description: 'correct index for last event',
+        },
+      ])(
+        'should find $description',
+        ({ timestamps, currentTime, expected }) => {
+          const events = createTestEvents(timestamps);
+          const result = replayer.binarySearchEventIndex(events, currentTime);
+          expect(result).toBe(expected);
+        },
+      );
 
       it.each([
         { time: 100, expected: 0, description: 'first element' },
@@ -73,19 +135,25 @@ describe('Replayer Internal Methods', () => {
         { time: 25000, expected: 249, description: 'quarter position' },
         { time: 75000, expected: 749, description: 'three-quarter position' },
         { time: 99950, expected: 998, description: 'near end (worst case)' },
-      ])('should perform efficiently with large arrays at $description', ({ time, expected }) => {
-        // Create a large array of events (1000 events: 100, 200, 300, ..., 100000)
-        const timestamps = Array.from({ length: 1000 }, (_, i) => (i + 1) * 100);
-        const events = createTestEvents(timestamps);
-        
-        const startTime = performance.now();
-        const result = replayer.binarySearchEventIndex(events, time);
-        const endTime = performance.now();
-        
-        expect(result).toBe(expected);
-        // Binary search should be fast even with 1000 elements (< 5ms per search)
-        expect(endTime - startTime).toBeLessThan(5);
-      });
+      ])(
+        'should perform efficiently with large arrays at $description',
+        ({ time, expected }) => {
+          // Create a large array of events (1000 events: 100, 200, 300, ..., 100000)
+          const timestamps = Array.from(
+            { length: 1000 },
+            (_, i) => (i + 1) * 100,
+          );
+          const events = createTestEvents(timestamps);
+
+          const startTime = performance.now();
+          const result = replayer.binarySearchEventIndex(events, time);
+          const endTime = performance.now();
+
+          expect(result).toBe(expected);
+          // Binary search should be fast even with 1000 elements (< 5ms per search)
+          expect(endTime - startTime).toBeLessThan(5);
+        },
+      );
     });
   });
 
