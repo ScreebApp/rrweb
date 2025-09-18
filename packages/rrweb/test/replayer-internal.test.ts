@@ -29,15 +29,15 @@ describe('Replayer Internal Methods', () => {
     });
   });
 
-  describe('binarySearchEventIndex', () => {
-    const createTestEvents = (timestamps: number[]): eventWithTime[] => {
-      return timestamps.map((timestamp) => ({
-        type: EventType.Load,
-        data: {},
-        timestamp,
-      }));
-    };
+  const createTestEvents = (timestamps: number[]): eventWithTime[] => {
+    return timestamps.map((timestamp) => ({
+      type: EventType.Load,
+      data: {},
+      timestamp,
+    }));
+  };
 
+  describe('binarySearchEventIndex', () => {
     describe('edge cases', () => {
       it.each([
         {
@@ -80,7 +80,10 @@ describe('Replayer Internal Methods', () => {
         'should handle $description',
         ({ timestamps, currentTime, expected }) => {
           const events = timestamps.length ? createTestEvents(timestamps) : [];
-          const result = replayer.binarySearchEventIndex(events, currentTime);
+          const result = (replayer as any).binarySearchEventIndex(
+            events,
+            currentTime,
+          );
           expect(result).toBe(expected);
         },
       );
@@ -123,7 +126,10 @@ describe('Replayer Internal Methods', () => {
         'should find $description',
         ({ timestamps, currentTime, expected }) => {
           const events = createTestEvents(timestamps);
-          const result = replayer.binarySearchEventIndex(events, currentTime);
+          const result = (replayer as any).binarySearchEventIndex(
+            events,
+            currentTime,
+          );
           expect(result).toBe(expected);
         },
       );
@@ -146,7 +152,7 @@ describe('Replayer Internal Methods', () => {
           const events = createTestEvents(timestamps);
 
           const startTime = performance.now();
-          const result = replayer.binarySearchEventIndex(events, time);
+          const result = (replayer as any).binarySearchEventIndex(events, time);
           const endTime = performance.now();
 
           expect(result).toBe(expected);
@@ -159,7 +165,6 @@ describe('Replayer Internal Methods', () => {
 
   describe('getCachedEventIndex', () => {
     beforeEach(() => {
-      // Reset cache state before each test
       (replayer as any).eventIndexCache = {
         lastTime: -1,
         lastIndex: 0,
@@ -168,51 +173,113 @@ describe('Replayer Internal Methods', () => {
     });
 
     describe('cache hit scenarios', () => {
-      it('should return cached index for exact timestamp match', () => {
-        // TODO: Test exact timestamp match with cached event
-        expect(true).toBe(true); // placeholder
-      });
-
-      it('should return cached index when within maxDrift tolerance', () => {
-        // TODO: Test timestamp within 3000ms of cached event
-        expect(true).toBe(true); // placeholder
-      });
-
-      it('should return cached index at maxDrift boundary (positive)', () => {
-        // TODO: Test timestamp exactly 3000ms after cached event
-        expect(true).toBe(true); // placeholder
-      });
-
-      it('should return cached index at maxDrift boundary (negative)', () => {
-        // TODO: Test timestamp exactly 3000ms before cached event
-        expect(true).toBe(true); // placeholder
-      });
+      it.each([
+        {
+          cachedTimestamp: 2000,
+          cachedIndex: 1,
+          currentTime: 2000,
+          expected: 1,
+          description: 'exact timestamp match',
+        },
+        {
+          cachedTimestamp: 5000,
+          cachedIndex: 1,
+          currentTime: 7000, // 5000 + 2000 (within maxDrift)
+          expected: 1,
+          description: 'within maxDrift tolerance',
+        },
+        {
+          cachedTimestamp: 5000,
+          cachedIndex: 1,
+          currentTime: 8000, // 5000 + 3000 (exactly at maxDrift)
+          expected: 1,
+          description: 'at maxDrift boundary (positive)',
+        },
+        {
+          cachedTimestamp: 5000,
+          cachedIndex: 1,
+          currentTime: 2000, // 5000 - 3000 (exactly at maxDrift)
+          expected: 1,
+          description: 'at maxDrift boundary (negative)',
+        },
+      ])(
+        'should return cached index for $description',
+        ({ cachedTimestamp, cachedIndex, currentTime, expected }) => {
+          const events = createTestEvents([1000, cachedTimestamp, 9000]);
+          (replayer as any).eventIndexCache = {
+            lastTime: cachedTimestamp,
+            lastIndex: cachedIndex,
+            maxDrift: 3000,
+          };
+          const result = (replayer as any).getCachedEventIndex(
+            events,
+            currentTime,
+          );
+          expect(result).toBe(expected);
+        },
+      );
     });
 
     describe('cache miss scenarios', () => {
-      it('should return -1 when beyond maxDrift tolerance (positive)', () => {
-        // TODO: Test timestamp > 3000ms after cached event
-        expect(true).toBe(true); // placeholder
-      });
-
-      it('should return -1 when beyond maxDrift tolerance (negative)', () => {
-        // TODO: Test timestamp > 3000ms before cached event
-        expect(true).toBe(true); // placeholder
-      });
+      it.each([
+        {
+          cachedTimestamp: 5000,
+          cachedIndex: 1,
+          currentTime: 8001, // 5000 + 3001 (beyond maxDrift)
+          expected: -1,
+          description: 'beyond maxDrift tolerance (positive)',
+        },
+        {
+          cachedTimestamp: 5000,
+          cachedIndex: 1,
+          currentTime: 1999, // 5000 - 3001 (beyond maxDrift)
+          expected: -1,
+          description: 'beyond maxDrift tolerance (negative)',
+        },
+        {
+          cachedTimestamp: 5000,
+          cachedIndex: 5, //Index >= events.length (3)
+          currentTime: 5000,
+          expected: -1,
+          description: 'cache.lastIndex way beyond events.length',
+        },
+      ])(
+        'should return -1 when $description',
+        ({ cachedTimestamp, cachedIndex, currentTime, expected }) => {
+          const events = createTestEvents([1000, 5000, 9000]);
+          (replayer as any).eventIndexCache = {
+            lastTime: cachedTimestamp,
+            lastIndex: cachedIndex,
+            maxDrift: 3000,
+          };
+          const result = (replayer as any).getCachedEventIndex(
+            events,
+            currentTime,
+          );
+          expect(result).toBe(expected);
+        },
+      );
 
       it('should return -1 for empty events array', () => {
-        // TODO: Test empty events array
-        expect(true).toBe(true); // placeholder
+        const events: eventWithTime[] = [];
+        (replayer as any).eventIndexCache = {
+          lastTime: 5000,
+          lastIndex: 0,
+          maxDrift: 3000,
+        };
+        const result = (replayer as any).getCachedEventIndex(events, 5000);
+        expect(result).toBe(-1);
       });
 
-      it('should return -1 when cache.lastIndex >= events.length', () => {
-        // TODO: Test invalid cache index
-        expect(true).toBe(true); // placeholder
-      });
-
-      it('should return -1 when cached event is undefined', () => {
-        // TODO: Test when events[cache.lastIndex] is undefined
-        expect(true).toBe(true); // placeholder
+      it('should return -1 when cached event is undefined due to invalid index', () => {
+        const events = createTestEvents([1000, 2000]);
+        (replayer as any).eventIndexCache = {
+          lastTime: 3000,
+          lastIndex: 3,
+          maxDrift: 3000,
+        };
+        const result = (replayer as any).getCachedEventIndex(events, 3000);
+        expect(result).toBe(-1);
       });
     });
   });
