@@ -6,7 +6,7 @@ import { Replayer } from '../src/replay';
 import { EventType } from '@sentry-internal/rrweb-types';
 import type { eventWithTime } from '@sentry-internal/rrweb-types';
 
-describe('Replayer Refresh Skip State', () => {
+describe('Replayer Reevaluate Fast Forward', () => {
   let replayer: Replayer;
 
   beforeEach(() => {
@@ -112,7 +112,7 @@ describe('Replayer Refresh Skip State', () => {
       { time: 50000, expected: 499, description: 'middle element' },
       { time: 25000, expected: 249, description: 'quarter position' },
       { time: 75000, expected: 749, description: 'three-quarter position' },
-      { time: 99950, expected: 998, description: 'near end (worst case)' },
+      { time: 99950, expected: 998, description: 'near end' },
     ])(
       'should perform efficiently with large arrays at $description',
       ({ time, expected }) => {
@@ -128,13 +128,13 @@ describe('Replayer Refresh Skip State', () => {
         const endTime = performance.now();
 
         expect(result).toBe(expected);
-        // Binary search should be fast even with 1000 elements (< 5ms per search)
+        // Binary search should be fast even with 1000 elements (< 1ms per search)
         expect(endTime - startTime).toBeLessThan(1);
       },
     );
   });
 
-  describe('refreshSkipState', () => {
+  describe('reevaluateFastForward', () => {
     let mockService: any;
     let mockSpeedService: any;
     let mockEmitter: any;
@@ -170,12 +170,12 @@ describe('Replayer Refresh Skip State', () => {
       (replayer as any).isUserInteraction = vi.fn();
     };
 
-    const expectNoSkip = () => {
+    const expectNoFastForward = () => {
       expect(mockSpeedService.send).not.toHaveBeenCalled();
       expect(mockEmitter.emit).not.toHaveBeenCalled();
     };
 
-    const expectSkip = (expectedSpeed: number, expectedTimestamp?: number) => {
+    const expectFastForward = (expectedSpeed: number, expectedTimestamp?: number) => {
       expect(mockSpeedService.send).toHaveBeenCalledWith({
         type: 'FAST_FORWARD',
         payload: { speed: expectedSpeed },
@@ -200,9 +200,9 @@ describe('Replayer Refresh Skip State', () => {
         'binarySearchEventIndex',
       );
 
-      replayer.refreshSkipState();
+      replayer.reevaluateFastForward();
       expect(binarySearchEventIndexSpy).not.toHaveBeenCalled();
-      expectNoSkip();
+      expectNoFastForward();
     });
 
     it('should return early for empty events array', () => {
@@ -213,9 +213,9 @@ describe('Replayer Refresh Skip State', () => {
         'binarySearchEventIndex',
       );
 
-      replayer.refreshSkipState();
+      replayer.reevaluateFastForward();
       expect(binarySearchEventIndexSpy).not.toHaveBeenCalled();
-      expectNoSkip();
+      expectNoFastForward();
     });
 
     it('should return early when binary search returns -1', () => {
@@ -228,23 +228,23 @@ describe('Replayer Refresh Skip State', () => {
         'isUserInteraction',
       );
 
-      replayer.refreshSkipState();
+      replayer.reevaluateFastForward();
       expect(isUserInteractionSpy).not.toHaveBeenCalled();
-      expectNoSkip();
+      expectNoFastForward();
     });
 
-    it('should not skip when no user interaction events found', () => {
+    it('should not fast forward when no user interaction events found', () => {
       const events = createTestEvents([1000, 2000, 3000]);
       (replayer as any).service.state.context.events = events;
 
       vi.spyOn(replayer as any, 'binarySearchEventIndex').mockReturnValue(1);
       (replayer as any).isUserInteraction.mockReturnValue(false); // No user interactions
 
-      replayer.refreshSkipState();
-      expectNoSkip();
+      replayer.reevaluateFastForward();
+      expectNoFastForward();
     });
 
-    it('should not skip when user interaction gap is within threshold', () => {
+    it('should not fast forward when user interaction gap is within threshold', () => {
       const events = createTestEvents([1000, 2000, 3000]);
       (replayer as any).service.state.context.events = events;
       (replayer as any).config.inactivePeriodThreshold = 5000;
@@ -254,13 +254,13 @@ describe('Replayer Refresh Skip State', () => {
         (event: any) => event.timestamp === 3000,
       );
 
-      replayer.refreshSkipState();
+      replayer.reevaluateFastForward();
 
       // Gap (1000) < threshold (5000 * 1), so no skip
-      expectNoSkip();
+      expectNoFastForward();
     });
 
-    it('should trigger skip when user interaction gap exceeds threshold', () => {
+    it('should fast forward when user interaction gap exceeds threshold', () => {
       const events = createTestEvents([1000, 2000, 8000]);
       (replayer as any).service.state.context.events = events;
       (replayer as any).config.inactivePeriodThreshold = 5000;
@@ -270,14 +270,14 @@ describe('Replayer Refresh Skip State', () => {
         (event: any) => event.timestamp === 8000,
       );
 
-      replayer.refreshSkipState();
+      replayer.reevaluateFastForward();
 
       // Gap (6000) > threshold (5000 * 1), so skip should be triggered
       const expectedSpeed = Math.min(Math.round(6000 / 5000), 360);
-      expectSkip(expectedSpeed, 8000);
+      expectFastForward(expectedSpeed, 8000);
     });
 
-    it('should work end-to-end with real binary search and trigger skip', () => {
+    it('should work end-to-end with real binary search and trigger fast forward', () => {
       const events = createTestEvents([1000, 2000, 12000]); // 10 second gap
       (replayer as any).service.state.context.events = events;
       (replayer as any).config.inactivePeriodThreshold = 5000;
@@ -291,11 +291,11 @@ describe('Replayer Refresh Skip State', () => {
         (event: any) => event.timestamp === 12000,
       );
 
-      replayer.refreshSkipState();
+      replayer.reevaluateFastForward();
       expect(binarySearchSpy).toHaveBeenCalledWith(events, 2500);
       expect(binarySearchSpy).toHaveReturnedWith(1);
       const expectedSpeed = Math.min(Math.round(10000 / 5000), 360);
-      expectSkip(expectedSpeed, 12000);
+      expectFastForward(expectedSpeed, 12000);
     });
 
     it.each([
@@ -342,8 +342,8 @@ describe('Replayer Refresh Skip State', () => {
           (event: any) => event.timestamp === 2000 + gapTime,
         );
 
-        replayer.refreshSkipState();
-        expectSkip(expectedSpeed);
+        replayer.reevaluateFastForward();
+        expectFastForward(expectedSpeed);
       },
     );
 
@@ -357,12 +357,12 @@ describe('Replayer Refresh Skip State', () => {
         'isUserInteraction',
       );
 
-      replayer.refreshSkipState();
+      replayer.reevaluateFastForward();
 
       // With only one event and currentEventIndex = 0, there are no events after current position
       // So the for loop (i = currentEventIndex + 1; i < events.length) never executes
       expect(isUserInteractionSpy).not.toHaveBeenCalled();
-      expectNoSkip();
+      expectNoFastForward();
     });
   });
 });
