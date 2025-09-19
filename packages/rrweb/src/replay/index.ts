@@ -707,7 +707,6 @@ export class Replayer {
       this.eventIndexCache.lastTime = currentEventTime;
       this.eventIndexCache.lastIndex = currentEventIndex;
     }
-
     if (currentEventIndex === -1) {
       return;
     }
