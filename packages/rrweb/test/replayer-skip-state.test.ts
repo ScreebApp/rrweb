@@ -3,10 +3,10 @@
  */
 import { vi } from 'vitest';
 import { Replayer } from '../src/replay';
-import { EventType, IncrementalSource } from '@sentry-internal/rrweb-types';
+import { EventType } from '@sentry-internal/rrweb-types';
 import type { eventWithTime } from '@sentry-internal/rrweb-types';
 
-describe('Replayer Internal Methods', () => {
+describe('Replayer Refresh Skip State', () => {
   let replayer: Replayer;
 
   beforeEach(() => {
@@ -161,8 +161,7 @@ describe('Replayer Internal Methods', () => {
     let mockSpeedService: any;
     let mockEmitter: any;
 
-    beforeEach(() => {
-      // Mock all the dependencies
+    const setupMocks = () => {
       mockService = {
         state: {
           context: {
@@ -192,6 +191,28 @@ describe('Replayer Internal Methods', () => {
       (replayer as any).emitter = mockEmitter;
       (replayer as any).getCurrentTime = vi.fn().mockReturnValue(5000);
       (replayer as any).isUserInteraction = vi.fn();
+    };
+
+    const expectNoSkip = () => {
+      expect(mockSpeedService.send).not.toHaveBeenCalled();
+      expect(mockEmitter.emit).not.toHaveBeenCalled();
+    };
+
+    const expectSkip = (expectedSpeed: number, expectedTimestamp?: number) => {
+      expect(mockSpeedService.send).toHaveBeenCalledWith({
+        type: 'FAST_FORWARD',
+        payload: { speed: expectedSpeed },
+      });
+      expect(mockEmitter.emit).toHaveBeenCalled();
+      if (expectedTimestamp) {
+        expect((replayer as any).nextUserInteractionEvent.timestamp).toBe(
+          expectedTimestamp,
+        );
+      }
+    };
+
+    beforeEach(() => {
+      setupMocks();
     });
 
     it('should return early when skipInactive is disabled', () => {
@@ -203,10 +224,8 @@ describe('Replayer Internal Methods', () => {
       );
 
       replayer.refreshSkipState();
-
       expect(binarySearchEventIndexSpy).not.toHaveBeenCalled();
-      expect(mockSpeedService.send).not.toHaveBeenCalled();
-      expect(mockEmitter.emit).not.toHaveBeenCalled();
+      expectNoSkip();
     });
 
     it('should return early for empty events array', () => {
@@ -218,10 +237,8 @@ describe('Replayer Internal Methods', () => {
       );
 
       replayer.refreshSkipState();
-
       expect(binarySearchEventIndexSpy).not.toHaveBeenCalled();
-      expect(mockSpeedService.send).not.toHaveBeenCalled();
-      expect(mockEmitter.emit).not.toHaveBeenCalled();
+      expectNoSkip();
     });
 
     it('should return early when binary search returns -1', () => {
@@ -235,10 +252,8 @@ describe('Replayer Internal Methods', () => {
       );
 
       replayer.refreshSkipState();
-
       expect(isUserInteractionSpy).not.toHaveBeenCalled();
-      expect(mockSpeedService.send).not.toHaveBeenCalled();
-      expect(mockEmitter.emit).not.toHaveBeenCalled();
+      expectNoSkip();
     });
 
     it('should not skip when no user interaction events found', () => {
@@ -249,15 +264,13 @@ describe('Replayer Internal Methods', () => {
       (replayer as any).isUserInteraction.mockReturnValue(false); // No user interactions
 
       replayer.refreshSkipState();
-
-      expect(mockSpeedService.send).not.toHaveBeenCalled();
-      expect(mockEmitter.emit).not.toHaveBeenCalled();
+      expectNoSkip();
     });
 
     it('should not skip when user interaction gap is within threshold', () => {
-      const events = createTestEvents([1000, 2000, 3000]); // Gap of 1000ms
+      const events = createTestEvents([1000, 2000, 3000]);
       (replayer as any).service.state.context.events = events;
-      (replayer as any).config.inactivePeriodThreshold = 5000; // 5000 * 1 = 5000ms threshold
+      (replayer as any).config.inactivePeriodThreshold = 5000;
 
       vi.spyOn(replayer as any, 'binarySearchEventIndex').mockReturnValue(1);
       (replayer as any).isUserInteraction.mockImplementation(
@@ -266,16 +279,14 @@ describe('Replayer Internal Methods', () => {
 
       replayer.refreshSkipState();
 
-      // Gap (1000) < threshold (5000), so no skip
-      expect(mockSpeedService.send).not.toHaveBeenCalled();
-      expect(mockEmitter.emit).not.toHaveBeenCalled();
+      // Gap (1000) < threshold (5000 * 1), so no skip
+      expectNoSkip();
     });
 
     it('should trigger skip when user interaction gap exceeds threshold', () => {
-      const events = createTestEvents([1000, 2000, 8000]); // Gap of 6000ms
+      const events = createTestEvents([1000, 2000, 8000]);
       (replayer as any).service.state.context.events = events;
-      (replayer as any).config.inactivePeriodThreshold = 5000; // 5000 * 1 = 5000ms threshold
-      (replayer as any).config.maxSpeed = 360;
+      (replayer as any).config.inactivePeriodThreshold = 5000;
 
       vi.spyOn(replayer as any, 'binarySearchEventIndex').mockReturnValue(1);
       (replayer as any).isUserInteraction.mockImplementation(
@@ -284,51 +295,44 @@ describe('Replayer Internal Methods', () => {
 
       replayer.refreshSkipState();
 
-      // Gap (6000) > threshold (5000), so skip should be triggered
-      expect(mockSpeedService.send).toHaveBeenCalledWith({
-        type: 'FAST_FORWARD',
-        payload: { speed: Math.min(Math.round(6000 / 5000), 360) }, // Math.min(1, 360) = 1
-      });
-      expect(mockEmitter.emit).toHaveBeenCalled();
-      expect((replayer as any).nextUserInteractionEvent.timestamp).toBe(8000);
+      // Gap (6000) > threshold (5000 * 1), so skip should be triggered
+      const expectedSpeed = Math.min(Math.round(6000 / 5000), 360);
+      expectSkip(expectedSpeed, 8000);
     });
 
     it('should work end-to-end with real binary search and trigger skip', () => {
-      // Create events with a large gap to trigger skip
       const events = createTestEvents([1000, 2000, 12000]); // 10 second gap
       (replayer as any).service.state.context.events = events;
-      (replayer as any).config.inactivePeriodThreshold = 5000; // 5 second threshold
-      (replayer as any).config.maxSpeed = 360;
-      (replayer as any).getCurrentTime = vi.fn().mockReturnValue(1500); // Current time at 2500ms total
+      (replayer as any).config.inactivePeriodThreshold = 5000;
+      (replayer as any).getCurrentTime = vi.fn().mockReturnValue(1500); // Current time is 1000 + 1500 = 2500ms
 
       const binarySearchSpy = vi.spyOn(
         replayer as any,
         'binarySearchEventIndex',
       );
       (replayer as any).isUserInteraction.mockImplementation(
-        (event: any) => event.timestamp === 12000, // Only the last event is a user interaction
+        (event: any) => event.timestamp === 12000,
       );
 
       replayer.refreshSkipState();
-
       expect(binarySearchSpy).toHaveBeenCalledWith(events, 2500);
       expect(binarySearchSpy).toHaveReturnedWith(1);
-
       const expectedSpeed = Math.min(Math.round(10000 / 5000), 360);
-      expect(mockSpeedService.send).toHaveBeenCalledWith({
-        type: 'FAST_FORWARD',
-        payload: { speed: expectedSpeed },
-      });
-      expect(mockEmitter.emit).toHaveBeenCalled();
-      expect((replayer as any).nextUserInteractionEvent.timestamp).toBe(12000);
+      expectSkip(expectedSpeed, 12000);
     });
 
     it.each([
       {
+        gapTime: 2500,
+        maxSpeed: 360,
+        expectedSpeed: 1,
+        description: 'rounding up (2500ms / 5000ms = 0.5 → 1)',
+      },
+      {
         gapTime: 6000,
         maxSpeed: 360,
         expectedSpeed: 1,
-        description: 'small gap (6000ms / 5000ms = 1.2 → 1)',
+        description: 'rounding down (6000ms / 5000ms = 1.2 → 1)',
       },
       {
         gapTime: 10000,
@@ -337,28 +341,16 @@ describe('Replayer Internal Methods', () => {
         description: 'exact multiple (10000ms / 5000ms = 2)',
       },
       {
-        gapTime: 12500,
-        maxSpeed: 360,
-        expectedSpeed: 3,
-        description: 'rounding up (12500ms / 5000ms = 2.5 → 3)',
-      },
-      {
         gapTime: 50000,
         maxSpeed: 360,
         expectedSpeed: 10,
         description: 'large gap under maxSpeed (50000ms / 5000ms = 10)',
       },
       {
-        gapTime: 100000,
+        gapTime: 50000,
         maxSpeed: 8,
         expectedSpeed: 8,
-        description: 'capped by maxSpeed (100000ms / 5000ms = 20 → 8)',
-      },
-      {
-        gapTime: 2500,
-        maxSpeed: 360,
-        expectedSpeed: 1,
-        description: 'rounding down (2500ms / 5000ms = 0.5 → 1)',
+        description: 'large gap capped by maxSpeed (50000ms / 5000ms = 10 → 8)',
       },
     ])(
       'should calculate speed correctly for $description',
@@ -374,11 +366,7 @@ describe('Replayer Internal Methods', () => {
         );
 
         replayer.refreshSkipState();
-
-        expect(mockSpeedService.send).toHaveBeenCalledWith({
-          type: 'FAST_FORWARD',
-          payload: { speed: expectedSpeed },
-        });
+        expectSkip(expectedSpeed);
       },
     );
 
@@ -397,8 +385,7 @@ describe('Replayer Internal Methods', () => {
       // With only one event and currentEventIndex = 0, there are no events after current position
       // So the for loop (i = currentEventIndex + 1; i < events.length) never executes
       expect(isUserInteractionSpy).not.toHaveBeenCalled();
-      expect(mockSpeedService.send).not.toHaveBeenCalled();
-      expect(mockEmitter.emit).not.toHaveBeenCalled();
+      expectNoSkip();
     });
   });
 });
