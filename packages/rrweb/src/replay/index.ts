@@ -41,7 +41,7 @@ import {
   type PlayerMachineState,
   type SpeedMachineState,
 } from './machine';
-import type { playerConfig, missingNodeMap, EventIndexCache } from '../types';
+import type { playerConfig, missingNodeMap } from '../types';
 import {
   EventType,
   IncrementalSource,
@@ -198,8 +198,6 @@ export class Replayer {
   // Similar to the reason for constructedStyleMutations.
   private adoptedStyleSheets: adoptedStyleSheetData[] = [];
 
-  // Cache for optimized event index lookups during playback.
-  private eventIndexCache: EventIndexCache;
 
   constructor(
     events: Array<eventWithTime | string>,
@@ -234,11 +232,6 @@ export class Replayer {
     this.applyEventsSynchronously = this.applyEventsSynchronously.bind(this);
     this.emitter.on(ReplayerEvents.Resize, this.handleResize as Handler);
 
-    this.eventIndexCache = {
-      lastTime: -1,
-      lastIndex: 0,
-      maxDrift: 3000, // 3 second max drift from the current playback position.
-    };
 
     this.setupDom();
 
@@ -666,22 +659,6 @@ export class Replayer {
     return result;
   }
 
-  private getCachedEventIndex(
-    events: eventWithTime[],
-    currentEventTime: number,
-  ): number {
-    const cache = this.eventIndexCache;
-    if (cache.lastIndex < events.length) {
-      const cachedEvent = events[cache.lastIndex];
-      if (
-        cachedEvent &&
-        Math.abs(cachedEvent.timestamp - currentEventTime) <= cache.maxDrift
-      ) {
-        return cache.lastIndex;
-      }
-    }
-    return -1;
-  }
 
   public refreshSkipState(): void {
     if (!this.config.skipInactive) {
@@ -699,14 +676,8 @@ export class Replayer {
     }
     const currentEventTime = firstEvent.timestamp + this.getCurrentTime();
 
-    // Try cache first for nearby positions (O(1))
-    let currentEventIndex = this.getCachedEventIndex(events, currentEventTime);
-    if (currentEventIndex === -1) {
-      // Cache miss - use binary search (O(log n))
-      currentEventIndex = this.binarySearchEventIndex(events, currentEventTime);
-      this.eventIndexCache.lastTime = currentEventTime;
-      this.eventIndexCache.lastIndex = currentEventIndex;
-    }
+    // Find current event index using binary search (O(log n))
+    const currentEventIndex = this.binarySearchEventIndex(events, currentEventTime);
     if (currentEventIndex === -1) {
       return;
     }

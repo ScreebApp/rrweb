@@ -252,8 +252,3 @@ export type CrossOriginIframeMessageEvent =
 
 export type ErrorHandler = (error: unknown) => void | boolean;
 
-export type EventIndexCache = {
-  lastTime: number;
-  lastIndex: number;
-  maxDrift: number;
-};
