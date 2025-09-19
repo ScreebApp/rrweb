@@ -49,45 +49,32 @@ describe('Replayer Refresh Skip State', () => {
         timestamps: [2000],
         currentTime: 1000,
         expected: -1,
-        description: 'single event before timestamp',
+        description: 'single event after current time',
       },
       {
         timestamps: [1000],
         currentTime: 1000,
         expected: 0,
-        description: 'single event at timestamp',
+        description: 'single event at current time',
       },
       {
         timestamps: [1000],
         currentTime: 2000,
         expected: 0,
-        description: 'single event after timestamp',
+        description: 'single event before current time',
       },
       {
         timestamps: [2000, 3000, 4000],
         currentTime: 1000,
         expected: -1,
-        description: 'before all events',
+        description: 'current time before all events',
       },
       {
         timestamps: [1000, 2000, 3000],
         currentTime: 5000,
         expected: 2,
-        description: 'after all events',
+        description: 'current time after all events',
       },
-    ])(
-      'should handle $description',
-      ({ timestamps, currentTime, expected }) => {
-        const events = timestamps.length ? createTestEvents(timestamps) : [];
-        const result = (replayer as any).binarySearchEventIndex(
-          events,
-          currentTime,
-        );
-        expect(result).toBe(expected);
-      },
-    );
-
-    it.each([
       {
         timestamps: [1000, 2000, 3000, 4000, 5000],
         currentTime: 3000,
@@ -107,26 +94,17 @@ describe('Replayer Refresh Skip State', () => {
         description:
           'multiple events with same timestamp (returns last occurrence)',
       },
-      {
-        timestamps: [1000, 2000, 3000, 4000],
-        currentTime: 1000,
-        expected: 0,
-        description: 'correct index for first event',
+    ])(
+      'should handle $description',
+      ({ timestamps, currentTime, expected }) => {
+        const events = timestamps.length ? createTestEvents(timestamps) : [];
+        const result = (replayer as any).binarySearchEventIndex(
+          events,
+          currentTime,
+        );
+        expect(result).toBe(expected);
       },
-      {
-        timestamps: [1000, 2000, 3000, 4000],
-        currentTime: 4000,
-        expected: 3,
-        description: 'correct index for last event',
-      },
-    ])('should find $description', ({ timestamps, currentTime, expected }) => {
-      const events = createTestEvents(timestamps);
-      const result = (replayer as any).binarySearchEventIndex(
-        events,
-        currentTime,
-      );
-      expect(result).toBe(expected);
-    });
+    );
 
     it.each([
       { time: 100, expected: 0, description: 'first element' },
@@ -151,7 +129,7 @@ describe('Replayer Refresh Skip State', () => {
 
         expect(result).toBe(expected);
         // Binary search should be fast even with 1000 elements (< 5ms per search)
-        expect(endTime - startTime).toBeLessThan(5);
+        expect(endTime - startTime).toBeLessThan(1);
       },
     );
   });
@@ -185,7 +163,6 @@ describe('Replayer Refresh Skip State', () => {
         emit: vi.fn(),
       };
 
-      // Replace replayer dependencies with mocks
       (replayer as any).service = mockService;
       (replayer as any).speedService = mockSpeedService;
       (replayer as any).emitter = mockEmitter;
