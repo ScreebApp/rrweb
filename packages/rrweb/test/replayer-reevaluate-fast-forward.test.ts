@@ -175,7 +175,10 @@ describe('Replayer Reevaluate Fast Forward', () => {
       expect(mockEmitter.emit).not.toHaveBeenCalled();
     };
 
-    const expectFastForward = (expectedSpeed: number, expectedTimestamp?: number) => {
+    const expectFastForward = (
+      expectedSpeed: number,
+      expectedTimestamp?: number,
+    ) => {
       expect(mockSpeedService.send).toHaveBeenCalledWith({
         type: 'FAST_FORWARD',
         payload: { speed: expectedSpeed },

@@ -691,7 +691,7 @@ export class Replayer {
       const event = events[i];
       if (this.isUserInteraction(event)) {
         const gapTime = event.timestamp - currentEvent.timestamp;
-        
+
         // Fast forward if the gap time is greater than the threshold
         if (gapTime > threshold) {
           this.nextUserInteractionEvent = event;
