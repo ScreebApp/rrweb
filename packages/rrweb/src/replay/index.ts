@@ -198,7 +198,6 @@ export class Replayer {
   // Similar to the reason for constructedStyleMutations.
   private adoptedStyleSheets: adoptedStyleSheetData[] = [];
 
-
   constructor(
     events: Array<eventWithTime | string>,
     config?: Partial<playerConfig>,
@@ -231,7 +230,6 @@ export class Replayer {
     this.getCastFn = this.getCastFn.bind(this);
     this.applyEventsSynchronously = this.applyEventsSynchronously.bind(this);
     this.emitter.on(ReplayerEvents.Resize, this.handleResize as Handler);
-
 
     this.setupDom();
 
@@ -659,7 +657,6 @@ export class Replayer {
     return result;
   }
 
-
   public refreshSkipState(): void {
     if (!this.config.skipInactive) {
       return;
@@ -677,7 +674,10 @@ export class Replayer {
     const currentEventTime = firstEvent.timestamp + this.getCurrentTime();
 
     // Find current event index using binary search (O(log n))
-    const currentEventIndex = this.binarySearchEventIndex(events, currentEventTime);
+    const currentEventIndex = this.binarySearchEventIndex(
+      events,
+      currentEventTime,
+    );
     if (currentEventIndex === -1) {
       return;
     }
