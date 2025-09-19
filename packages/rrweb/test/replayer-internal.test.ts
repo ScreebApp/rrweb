@@ -322,46 +322,83 @@ describe('Replayer Internal Methods', () => {
       (replayer as any).isUserInteraction = vi.fn();
     });
 
-    describe('configuration tests', () => {
-      it('should return early when skipInactive is disabled', () => {
-        // TODO: Test with config.skipInactive = false
-        expect(true).toBe(true); // placeholder
-      });
+    it('should return early when skipInactive is disabled', () => {
+      (replayer as any).config.skipInactive = false;
 
-      it('should return early for empty events array', () => {
-        // TODO: Test with empty events array
-        expect(true).toBe(true); // placeholder
-      });
+      const getCachedEventIndexSpy = vi.spyOn(replayer as any, 'getCachedEventIndex');
+      const binarySearchEventIndexSpy = vi.spyOn(replayer as any, 'binarySearchEventIndex');
 
-      it('should handle single event array', () => {
-        // TODO: Test with single event
-        expect(true).toBe(true); // placeholder
-      });
+      replayer.refreshSkipState();
+      
+      expect(getCachedEventIndexSpy).not.toHaveBeenCalled();
+      expect(binarySearchEventIndexSpy).not.toHaveBeenCalled();
+      expect(mockSpeedService.send).not.toHaveBeenCalled();
+      expect(mockEmitter.emit).not.toHaveBeenCalled();
     });
 
-    describe('cache integration tests', () => {
+    it('should return early for empty events array', () => {
+      (replayer as any).service.state.context.events = [];
+      
+      const getCachedEventIndexSpy = vi.spyOn(replayer as any, 'getCachedEventIndex');
+      const binarySearchEventIndexSpy = vi.spyOn(replayer as any, 'binarySearchEventIndex');
+
+      replayer.refreshSkipState();
+
+      expect(getCachedEventIndexSpy).not.toHaveBeenCalled();
+      expect(binarySearchEventIndexSpy).not.toHaveBeenCalled();
+      expect(mockSpeedService.send).not.toHaveBeenCalled();
+      expect(mockEmitter.emit).not.toHaveBeenCalled();
+    });
+
+    describe('cache integration', () => {
       it('should use cached index when cache hit occurs', () => {
-        // TODO: Test cache hit scenario - should not call binarySearchEventIndex
-        expect(true).toBe(true); // placeholder
+        const events = createTestEvents([1000, 2000, 3000]);
+        (replayer as any).service.state.context.events = events;
+        
+        const getCachedEventIndexSpy = vi.spyOn(replayer as any, 'getCachedEventIndex').mockReturnValue(1);
+        const binarySearchEventIndexSpy = vi.spyOn(replayer as any, 'binarySearchEventIndex');
+
+        replayer.refreshSkipState();
+
+        expect(getCachedEventIndexSpy).toHaveBeenCalledWith(events, expect.any(Number));
+        expect(binarySearchEventIndexSpy).not.toHaveBeenCalled();
       });
 
-      it('should fall back to binary search on cache miss', () => {
-        // TODO: Test cache miss - should call binarySearchEventIndex
-        expect(true).toBe(true); // placeholder
+      it('should fall back to binary search and update cache on cache miss', () => {
+        const events = createTestEvents([1000, 2000, 3000]);
+        (replayer as any).service.state.context.events = events;
+
+        const getCachedEventIndexSpy = vi.spyOn(replayer as any, 'getCachedEventIndex').mockReturnValue(-1);
+        const binarySearchEventIndexSpy = vi.spyOn(replayer as any, 'binarySearchEventIndex').mockReturnValue(1);
+
+        (replayer as any).getCurrentTime.mockReturnValue(500);
+        const expectedCurrentEventTime = events[0].timestamp + 500; // 1000 + 500 = 1500
+
+        replayer.refreshSkipState();
+
+        expect(getCachedEventIndexSpy).toHaveBeenCalledWith(events, expect.any(Number));
+        expect(binarySearchEventIndexSpy).toHaveBeenCalledWith(events, expect.any(Number));
+        expect((replayer as any).eventIndexCache.lastTime).toBe(expectedCurrentEventTime);
+        expect((replayer as any).eventIndexCache.lastIndex).toBe(1);
       });
 
-      it('should update cache after binary search', () => {
-        // TODO: Test that cache is updated with new time and index
-        expect(true).toBe(true); // placeholder
-      });
+      it('should return early when both cache and binary search return -1', () => {
+        const events = createTestEvents([1000, 2000, 3000]);
+        (replayer as any).service.state.context.events = events;
+        
+        vi.spyOn(replayer as any, 'getCachedEventIndex').mockReturnValue(-1);
+        vi.spyOn(replayer as any, 'binarySearchEventIndex').mockReturnValue(-1);
+        const isUserInteractionSpy = vi.spyOn(replayer as any, 'isUserInteraction');
 
-      it('should return early when event index is -1', () => {
-        // TODO: Test when both cache and binary search return -1
-        expect(true).toBe(true); // placeholder
+        replayer.refreshSkipState();
+
+        expect(isUserInteractionSpy).not.toHaveBeenCalled();
+        expect(mockSpeedService.send).not.toHaveBeenCalled();
+        expect(mockEmitter.emit).not.toHaveBeenCalled();
       });
     });
 
-    describe('skip logic tests', () => {
+    describe('user interaction detection', () => {
       it('should not skip when no user interaction events found', () => {
         // TODO: Test when no user interactions exist after current position
         expect(true).toBe(true); // placeholder
@@ -377,23 +414,8 @@ describe('Replayer Internal Methods', () => {
         expect(true).toBe(true); // placeholder
       });
 
-      it('should calculate speed correctly based on gap time', () => {
-        // TODO: Test speed calculation: Math.min(Math.round(gapTime / SKIP_TIME_INTERVAL), maxSpeed)
-        expect(true).toBe(true); // placeholder
-      });
-
-      it('should respect maxSpeed limit in speed calculation', () => {
-        // TODO: Test that calculated speed never exceeds config.maxSpeed
-        expect(true).toBe(true); // placeholder
-      });
-
-      it('should handle multiple user interaction events correctly', () => {
+      it('should only consider first user interaction after current position', () => {
         // TODO: Test that only the first user interaction after current position is considered
-        expect(true).toBe(true); // placeholder
-      });
-
-      it('should clear nextUserInteractionEvent at start', () => {
-        // TODO: Test that nextUserInteractionEvent is set to null initially
         expect(true).toBe(true); // placeholder
       });
 
@@ -403,19 +425,7 @@ describe('Replayer Internal Methods', () => {
       });
     });
 
-    describe('event emission tests', () => {
-      it('should emit SkipStart event with correct payload', () => {
-        // TODO: Test that ReplayerEvents.SkipStart is emitted with speed payload
-        expect(true).toBe(true); // placeholder
-      });
-
-      it('should send FAST_FORWARD event to speed service', () => {
-        // TODO: Test that speedService.send is called with FAST_FORWARD and payload
-        expect(true).toBe(true); // placeholder
-      });
-    });
-
-    describe('threshold calculation tests', () => {
+    describe('threshold calculation', () => {
       it('should calculate threshold correctly with different timer speeds', () => {
         // TODO: Test threshold = inactivePeriodThreshold * timer.speed
         expect(true).toBe(true); // placeholder
@@ -428,6 +438,75 @@ describe('Replayer Internal Methods', () => {
 
       it('should handle negative timer speed', () => {
         // TODO: Test edge case with negative timer.speed
+        expect(true).toBe(true); // placeholder
+      });
+    });
+
+    describe('speed calculation', () => {
+      it('should calculate speed correctly based on gap time', () => {
+        // TODO: Test speed calculation: Math.min(Math.round(gapTime / SKIP_TIME_INTERVAL), maxSpeed)
+        // SKIP_TIME_INTERVAL = 5000ms
+        expect(true).toBe(true); // placeholder
+      });
+
+      it('should respect maxSpeed limit in speed calculation', () => {
+        // TODO: Test that calculated speed never exceeds config.maxSpeed
+        expect(true).toBe(true); // placeholder
+      });
+
+      it('should handle very small gap times', () => {
+        // TODO: Test gap times smaller than SKIP_TIME_INTERVAL (5000ms)
+        expect(true).toBe(true); // placeholder
+      });
+
+      it('should handle very large gap times', () => {
+        // TODO: Test gap times much larger than SKIP_TIME_INTERVAL
+        expect(true).toBe(true); // placeholder
+      });
+    });
+
+    describe('service interactions', () => {
+      it('should emit SkipStart event with correct payload', () => {
+        // TODO: Test that ReplayerEvents.SkipStart is emitted with speed payload
+        expect(true).toBe(true); // placeholder
+      });
+
+      it('should send FAST_FORWARD event to speed service', () => {
+        // TODO: Test that speedService.send is called with FAST_FORWARD and payload
+        expect(true).toBe(true); // placeholder
+      });
+
+      it('should not emit or send events when no skip is triggered', () => {
+        // TODO: Test that no events are emitted when skip conditions are not met
+        expect(true).toBe(true); // placeholder
+      });
+    });
+
+    describe('currentEventTime calculation', () => {
+      it('should calculate currentEventTime correctly', () => {
+        // TODO: Test currentEventTime = firstEvent.timestamp + getCurrentTime()
+        expect(true).toBe(true); // placeholder
+      });
+
+      it('should handle different getCurrentTime values', () => {
+        // TODO: Test with different getCurrentTime return values
+        expect(true).toBe(true); // placeholder
+      });
+    });
+
+    describe('edge cases', () => {
+      it('should handle single event array', () => {
+        // TODO: Test with single event (no events after current position)
+        expect(true).toBe(true); // placeholder
+      });
+
+      it('should handle events array with only non-user-interaction events', () => {
+        // TODO: Test with events that are not user interactions
+        expect(true).toBe(true); // placeholder
+      });
+
+      it('should handle currentEventIndex at last position', () => {
+        // TODO: Test when currentEventIndex is the last event in the array
         expect(true).toBe(true); // placeholder
       });
     });
