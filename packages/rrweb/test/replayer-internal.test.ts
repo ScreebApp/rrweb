@@ -537,21 +537,24 @@ describe('Replayer Internal Methods', () => {
       },
     );
 
-    describe('edge cases', () => {
-      it('should handle single event array', () => {
-        // TODO: Test with single event (no events after current position)
-        expect(true).toBe(true); // placeholder
-      });
+    it('should handle currentEventIndex at last position', () => {
+      const events = createTestEvents([1000]); // Single event
+      (replayer as any).service.state.context.events = events;
 
-      it('should handle events array with only non-user-interaction events', () => {
-        // TODO: Test with events that are not user interactions
-        expect(true).toBe(true); // placeholder
-      });
+      vi.spyOn(replayer as any, 'getCachedEventIndex').mockReturnValue(-1);
+      vi.spyOn(replayer as any, 'binarySearchEventIndex').mockReturnValue(0);
+      const isUserInteractionSpy = vi.spyOn(
+        replayer as any,
+        'isUserInteraction',
+      );
 
-      it('should handle currentEventIndex at last position', () => {
-        // TODO: Test when currentEventIndex is the last event in the array
-        expect(true).toBe(true); // placeholder
-      });
+      replayer.refreshSkipState();
+
+      // With only one event and currentEventIndex = 0, there are no events after current position
+      // So the for loop (i = currentEventIndex + 1; i < events.length) never executes
+      expect(isUserInteractionSpy).not.toHaveBeenCalled();
+      expect(mockSpeedService.send).not.toHaveBeenCalled();
+      expect(mockEmitter.emit).not.toHaveBeenCalled();
     });
   });
 });
