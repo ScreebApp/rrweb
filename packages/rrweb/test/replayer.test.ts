@@ -1334,4 +1334,327 @@ describe('replayer', function () {
     // If the custom element is defined, the display value will be 'block'.
     expect(displayValue).toEqual('block');
   });
+
+  describe('Fast-forward scrubbing behavior', () => {
+    // Test cases for different scrubbing scenarios with fast-forward logic
+    
+    it('should enter fast-forward when jumping from small to large gap in activity', async () => {
+      const result = await page.evaluate(`
+        const { Replayer, ReplayerEvents, EventType, IncrementalSource } = rrweb;
+        
+        const testEvents = [
+          { type: EventType.DomContentLoaded, data: {}, timestamp: 1000 },
+          { type: EventType.Load, data: {}, timestamp: 1100 },
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 100, y: 100 }, 
+            timestamp: 2000 
+          },
+          // Small gap - next interaction at 6000ms (4 second gap < 5s threshold)
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 110, y: 110 }, 
+            timestamp: 6000 
+          },
+          // Large gap - next interaction at 20000ms (14 second gap > 5s threshold)
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 200, y: 200 }, 
+            timestamp: 20000 
+          }
+        ];
+        
+        const replayer = new Replayer(testEvents, { 
+          skipInactive: true, 
+          inactivePeriodThreshold: 5000,
+          maxSpeed: 360
+        });
+        
+        replayer.pause(3000); // In small gap, should not fast forward here
+        
+        let skipStartEmitted = false;
+        let skipStartPayload = null;
+        replayer.on(ReplayerEvents.SkipStart, (payload) => {
+          skipStartEmitted = true;
+          skipStartPayload = payload;
+        });
+        replayer.pause(8000); // Jump to large gap should trigger fast forward
+        
+        ({
+          skipStartEmitted,
+          skipStartPayload,
+          speedServiceState: replayer.speedService.state.value
+        });
+      `);
+
+       // Should trigger fast-forward when jumping into the large gap
+      expect((result as any).skipStartEmitted).toBe(true);
+      expect((result as any).skipStartPayload).toBeTruthy();
+      expect((result as any).skipStartPayload.speed).toBeGreaterThan(1);
+      expect((result as any).speedServiceState).toBe('skipping');
+    });
+
+    it('should exit fast-forward when jumping from large to small gap in activity', async () => {
+      const result = await page.evaluate(`
+        const { Replayer, ReplayerEvents, EventType, IncrementalSource } = rrweb;
+        
+        const testEvents = [
+          { type: EventType.DomContentLoaded, data: {}, timestamp: 1000 },
+          { type: EventType.Load, data: {}, timestamp: 1100 },
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 100, y: 100 }, 
+            timestamp: 2000 
+          },
+          // Large gap - 18 second gap > 5s threshold
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 110, y: 110 }, 
+            timestamp: 20000 
+          },
+          // Small gap - 3 second gap < 5s threshold
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 200, y: 200 }, 
+            timestamp: 23000 
+          }
+        ];
+        
+        const replayer = new Replayer(testEvents, { 
+          skipInactive: true, 
+          inactivePeriodThreshold: 5000,
+          maxSpeed: 360
+        });
+        
+        replayer.pause(5000); // In large gap, should fast forward here
+        
+        let skipEndEmitted = false;
+        let skipStartEmitted = false;
+        replayer.on(ReplayerEvents.SkipEnd, () => {
+          skipEndEmitted = true;
+        });
+        replayer.on(ReplayerEvents.SkipStart, () => {
+          skipStartEmitted = true;
+        });
+        replayer.pause(21000); // Jump to small gap should exit fast-forward
+        
+        ({
+          skipEndEmitted,
+          skipStartEmitted,
+          speedServiceState: replayer.speedService.state.value
+        });
+      `);
+
+      expect((result as any).skipEndEmitted).toBe(true);
+      expect((result as any).skipStartEmitted).toBe(false);
+      expect((result as any).speedServiceState).toBe('normal');
+    });
+
+    it('should maintain fast-forward and adjust speed when jumping from large to large gap in activity', async () => {
+      const result = await page.evaluate(`
+        const { Replayer, ReplayerEvents, EventType, IncrementalSource } = rrweb;
+        
+        const testEvents = [
+          { type: EventType.DomContentLoaded, data: {}, timestamp: 1000 },
+          { type: EventType.Load, data: {}, timestamp: 1100 },
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 100, y: 100 }, 
+            timestamp: 2000 
+          },
+          // First large gap - 13 second gap > 5s threshold
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 110, y: 110 }, 
+            timestamp: 15000 
+          },
+          // Second large gap - 20 second gap > 5s threshold
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 200, y: 200 }, 
+            timestamp: 35000 
+          }
+        ];
+        
+        const replayer = new Replayer(testEvents, { 
+          skipInactive: true, 
+          inactivePeriodThreshold: 5000,
+          maxSpeed: 360
+        });
+        let skipStartCount = 0;
+        let lastSkipStartPayload = null;
+        replayer.on(ReplayerEvents.SkipStart, (payload) => {
+          skipStartCount++;
+          lastSkipStartPayload = payload;
+        });
+        
+        // Jump to first large gap
+        replayer.pause(8000); // In first gap (7s remaining from 15000-2000=13s)
+        const firstGapSpeed = lastSkipStartPayload?.speed;
+        
+        // Reset skipStartCount and jump to second large gap (bigger gap -> higher speed)
+        skipStartCount = 0;
+        replayer.pause(20000); // In second gap (15s remaining from 35000-15000=20s)
+        
+        ({
+          skipStartCount,
+          firstGapSpeed,
+          secondGapSpeed: lastSkipStartPayload?.speed,
+          speedServiceState: replayer.speedService.state.value
+        });
+      `);
+
+      expect((result as any).skipStartCount).toBe(1); // Should trigger reevaluation
+      expect((result as any).firstGapSpeed).toBeGreaterThan(1);
+      expect((result as any).secondGapSpeed).toBeGreaterThan(1);
+      expect((result as any).secondGapSpeed).toBeGreaterThan((result as any).firstGapSpeed); // Bigger gap -> higher speed
+      expect((result as any).speedServiceState).toBe('skipping');
+    });
+
+    it('should not trigger fast-forward when jumping from small to small gap in activity', async () => {
+      const result = await page.evaluate(`
+        const { Replayer, ReplayerEvents, EventType, IncrementalSource } = rrweb;
+        
+        const testEvents = [
+          { type: EventType.DomContentLoaded, data: {}, timestamp: 1000 },
+          { type: EventType.Load, data: {}, timestamp: 1100 },
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 100, y: 100 }, 
+            timestamp: 2000 
+          },
+          // Small gap - 4 second gap < 5s threshold
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 110, y: 110 }, 
+            timestamp: 6000 
+          },
+          // Another small gap - 3 second gap < 5s threshold
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 200, y: 200 }, 
+            timestamp: 9000 
+          }
+        ];
+        
+        const replayer = new Replayer(testEvents, { 
+          skipInactive: true, 
+          inactivePeriodThreshold: 5000,
+          maxSpeed: 360
+        });
+        let skipStartEmitted = false;
+        replayer.on(ReplayerEvents.SkipStart, () => {
+          skipStartEmitted = true;
+        });
+        
+        replayer.pause(3000); 
+        skipStartEmitted = false; 
+        replayer.pause(7000); 
+        
+        ({
+          skipStartEmitted,
+          speedServiceState: replayer.speedService.state.value
+        });
+      `);
+
+      expect((result as any).skipStartEmitted).toBe(false); // Should not trigger fast-forward
+      expect((result as any).speedServiceState).toBe('normal');
+    });
+
+
+    it('should respect inactivePeriodThreshold when scrubbing', async () => {
+      const result = await page.evaluate(`
+        const { Replayer, ReplayerEvents, EventType, IncrementalSource } = rrweb;
+        
+        const testEvents = [
+          { type: EventType.DomContentLoaded, data: {}, timestamp: 1000 },
+          { type: EventType.Load, data: {}, timestamp: 1100 },
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 100, y: 100 }, 
+            timestamp: 2000 
+          },
+          // Gap just below threshold should not trigger fast forward - 9 second gap < 10s threshold
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 110, y: 110 }, 
+            timestamp: 11000 
+          },
+          // Gap above threshold should trigger fast forward - 11 second gap > 10s threshold
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 200, y: 200 }, 
+            timestamp: 22000 
+          }
+        ];
+        
+        const replayer = new Replayer(testEvents, { 
+          skipInactive: true, 
+          inactivePeriodThreshold: 10000,
+          maxSpeed: 360
+        });
+        let skipStartEmitted = false;
+        replayer.on(ReplayerEvents.SkipStart, () => {
+          skipStartEmitted = true;
+        });
+        
+        replayer.pause(5000);
+        const belowThresholdTriggered = skipStartEmitted;
+        
+        skipStartEmitted = false;
+        replayer.pause(15000); 
+        const aboveThresholdTriggered = skipStartEmitted;
+        
+        ({
+          belowThresholdTriggered,
+          aboveThresholdTriggered
+        });
+      `);
+
+      expect((result as any).belowThresholdTriggered).toBe(false);
+      expect((result as any).aboveThresholdTriggered).toBe(true);
+    });
+
+    it('should never fast forward when skipInactive is disabled', async () => {
+      const result = await page.evaluate(`
+        const { Replayer, ReplayerEvents, EventType, IncrementalSource } = rrweb;
+        
+        const testEvents = [
+          { type: EventType.DomContentLoaded, data: {}, timestamp: 1000 },
+          { type: EventType.Load, data: {}, timestamp: 1100 },
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 100, y: 100 }, 
+            timestamp: 2000 
+          },
+          // Huge gap - 30 second gap that would normally trigger fast-forward
+          { 
+            type: EventType.IncrementalSnapshot, 
+            data: { source: IncrementalSource.MouseInteraction, type: 0, id: 1, x: 200, y: 200 }, 
+            timestamp: 32000 
+          }
+        ];
+        
+        const replayer = new Replayer(testEvents, { 
+          skipInactive: false, // Disabled!
+          inactivePeriodThreshold: 5000,
+          maxSpeed: 360
+        });
+        let skipStartEmitted = false;
+        replayer.on(ReplayerEvents.SkipStart, () => {
+          skipStartEmitted = true;
+        });
+        
+        replayer.pause(10000);
+        
+        ({
+          skipStartEmitted,
+          speedServiceState: replayer.speedService.state.value
+        });
+      `);
+
+      expect((result as any).skipStartEmitted).toBe(false);
+      expect((result as any).speedServiceState).toBe('normal');
+    });
+  });
 });
