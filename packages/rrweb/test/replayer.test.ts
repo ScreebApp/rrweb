@@ -1387,7 +1387,6 @@ describe('replayer', function () {
         });
       `);
 
-      // Should trigger fast-forward when jumping into the large gap
       expect((result as any).skipStartEmitted).toBe(true);
       expect((result as any).skipStartPayload).toBeTruthy();
       expect((result as any).skipStartPayload.speed).toBeGreaterThan(1);
@@ -1489,12 +1488,12 @@ describe('replayer', function () {
         });
         
         // Jump to first large gap
-        replayer.pause(8000); // In first gap (7s remaining from 15000-2000=13s)
+        replayer.pause(8000); 
         const firstGapSpeed = lastSkipStartPayload?.speed;
         
         // Reset skipStartCount and jump to second large gap (bigger gap -> higher speed)
         skipStartCount = 0;
-        replayer.pause(20000); // In second gap (15s remaining from 35000-15000=20s)
+        replayer.pause(20000); 
         
         ({
           skipStartCount,
@@ -1544,13 +1543,13 @@ describe('replayer', function () {
           inactivePeriodThreshold: 5000,
           maxSpeed: 360
         });
+        
+        replayer.pause(3000); 
+
         let skipStartEmitted = false;
         replayer.on(ReplayerEvents.SkipStart, () => {
           skipStartEmitted = true;
         });
-        
-        replayer.pause(3000); 
-        skipStartEmitted = false; 
         replayer.pause(7000); 
         
         ({
@@ -1559,7 +1558,7 @@ describe('replayer', function () {
         });
       `);
 
-      expect((result as any).skipStartEmitted).toBe(false); // Should not trigger fast-forward
+      expect((result as any).skipStartEmitted).toBe(false);
       expect((result as any).speedServiceState).toBe('normal');
     });
 
