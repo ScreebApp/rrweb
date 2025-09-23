@@ -665,7 +665,7 @@ export class Replayer {
     return result;
   }
 
-  public reevaluateFastForward(): void {
+  private reevaluateFastForward(): void {
     if (!this.config.skipInactive) {
       return;
     }
