@@ -106,10 +106,13 @@ export function getCurrentEventIndex(
   events: eventWithTime[],
   currentEventTime: number,
 ): number {
+  // Use binary search (O(log n)) to find the current event index
+  let result = -1;
+  if (events.length === 0) {
+    return result;
+  }
   let left = 0,
     right = events.length - 1;
-  let result = -1;
-
   while (left <= right) {
     const mid = Math.floor((left + right) / 2);
     if (events[mid].timestamp <= currentEventTime) {
@@ -687,7 +690,7 @@ export class Replayer {
     }
     const currentEventTime = firstEvent.timestamp + this.getCurrentTime();
 
-    // Find current event index using binary search (O(log n))
+    // Find current event index
     const currentEventIndex = getCurrentEventIndex(events, currentEventTime);
     if (currentEventIndex === -1) {
       return;
