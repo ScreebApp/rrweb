@@ -615,9 +615,6 @@ export class Replayer {
     if (typeof timeOffset === 'number') {
       this.play(timeOffset);
       this.service.send({ type: 'PAUSE' });
-      if (this.config.skipInactive) {
-        this.reevaluateFastForward();
-      }
     }
     const iframeDoc = getIFrameContentDocument(this.iframe);
     iframeDoc?.getElementsByTagName('html')[0]?.classList.add('rrweb-paused');
