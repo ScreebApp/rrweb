@@ -482,6 +482,7 @@ export class Replayer {
   }
 
   public setConfig(config: Partial<playerConfig>) {
+    const previousSkipInactive = this.config.skipInactive;
     Object.keys(config).forEach((key) => {
       const newConfigValue = config[key as keyof playerConfig];
       (this.config as Record<keyof playerConfig, typeof newConfigValue>)[
@@ -490,6 +491,8 @@ export class Replayer {
     });
     if (!this.config.skipInactive) {
       this.backToNormal();
+    } else if (previousSkipInactive === false && this.config.skipInactive === true) {
+      this.reevaluateFastForward();
     }
     if (typeof config.speed !== 'undefined') {
       this.speedService.send({
@@ -557,6 +560,9 @@ export class Replayer {
    * @param timeOffset - number
    */
   public play(timeOffset = 0) {
+    if (this.config.skipInactive && this.speedService.state.matches('skipping')) {
+      this.backToNormal();
+    }
     if (this.service.state.matches('paused')) {
       this.service.send({ type: 'PLAY', payload: { timeOffset } });
     } else {
@@ -568,6 +574,9 @@ export class Replayer {
       ?.getElementsByTagName('html')[0]
       ?.classList.remove('rrweb-paused');
     this.emitter.emit(ReplayerEvents.Start);
+    if (this.config.skipInactive) {
+      this.reevaluateFastForward();
+    }
   }
 
   public pause(timeOffset?: number) {
@@ -577,6 +586,9 @@ export class Replayer {
     if (typeof timeOffset === 'number') {
       this.play(timeOffset);
       this.service.send({ type: 'PAUSE' });
+      if (this.config.skipInactive) {
+        this.reevaluateFastForward();
+      }
     }
     const iframeDoc = getIFrameContentDocument(this.iframe);
     iframeDoc?.getElementsByTagName('html')[0]?.classList.add('rrweb-paused');
@@ -631,10 +643,6 @@ export class Replayer {
    */
   public resetCache() {
     this.cache = createCache();
-  }
-
-  public resetFastForward() {
-    this.backToNormal();
   }
 
   private binarySearchEventIndex(
