@@ -491,7 +491,10 @@ export class Replayer {
     });
     if (!this.config.skipInactive) {
       this.backToNormal();
-    } else if (previousSkipInactive === false && this.config.skipInactive === true) {
+    } else if (
+      previousSkipInactive === false &&
+      this.config.skipInactive === true
+    ) {
       this.reevaluateFastForward();
     }
     if (typeof config.speed !== 'undefined') {
@@ -560,7 +563,10 @@ export class Replayer {
    * @param timeOffset - number
    */
   public play(timeOffset = 0) {
-    if (this.config.skipInactive && this.speedService.state.matches('skipping')) {
+    if (
+      this.config.skipInactive &&
+      this.speedService.state.matches('skipping')
+    ) {
       this.backToNormal();
     }
     if (this.service.state.matches('paused')) {

@@ -203,7 +203,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
         'binarySearchEventIndex',
       );
 
-      replayer.reevaluateFastForward();
+      (replayer as any).reevaluateFastForward();
       expect(binarySearchEventIndexSpy).not.toHaveBeenCalled();
       expectNoFastForward();
     });
@@ -216,7 +216,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
         'binarySearchEventIndex',
       );
 
-      replayer.reevaluateFastForward();
+      (replayer as any).reevaluateFastForward();
       expect(binarySearchEventIndexSpy).not.toHaveBeenCalled();
       expectNoFastForward();
     });
@@ -231,7 +231,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
         'isUserInteraction',
       );
 
-      replayer.reevaluateFastForward();
+      (replayer as any).reevaluateFastForward();
       expect(isUserInteractionSpy).not.toHaveBeenCalled();
       expectNoFastForward();
     });
@@ -243,7 +243,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
       vi.spyOn(replayer as any, 'binarySearchEventIndex').mockReturnValue(1);
       (replayer as any).isUserInteraction.mockReturnValue(false); // No user interactions
 
-      replayer.reevaluateFastForward();
+      (replayer as any).reevaluateFastForward();
       expectNoFastForward();
     });
 
@@ -257,7 +257,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
         (event: any) => event.timestamp === 3000,
       );
 
-      replayer.reevaluateFastForward();
+      (replayer as any).reevaluateFastForward();
 
       // Gap (1000) < threshold (5000 * 1), so no skip
       expectNoFastForward();
@@ -273,7 +273,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
         (event: any) => event.timestamp === 8000,
       );
 
-      replayer.reevaluateFastForward();
+      (replayer as any).reevaluateFastForward();
 
       // Gap (6000) > threshold (5000 * 1), so skip should be triggered
       const expectedSpeed = Math.min(Math.round(6000 / 5000), 360);
@@ -294,7 +294,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
         (event: any) => event.timestamp === 12000,
       );
 
-      replayer.reevaluateFastForward();
+      (replayer as any).reevaluateFastForward();
       expect(binarySearchSpy).toHaveBeenCalledWith(events, 2500);
       expect(binarySearchSpy).toHaveReturnedWith(1);
       const expectedSpeed = Math.min(Math.round(10000 / 5000), 360);
@@ -345,7 +345,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
           (event: any) => event.timestamp === 2000 + gapTime,
         );
 
-        replayer.reevaluateFastForward();
+        (replayer as any).reevaluateFastForward();
         expectFastForward(expectedSpeed);
       },
     );
@@ -360,7 +360,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
         'isUserInteraction',
       );
 
-      replayer.reevaluateFastForward();
+      (replayer as any).reevaluateFastForward();
 
       // With only one event and currentEventIndex = 0, there are no events after current position
       // So the for loop (i = currentEventIndex + 1; i < events.length) never executes

@@ -1337,7 +1337,7 @@ describe('replayer', function () {
 
   describe('Fast-forward scrubbing behavior', () => {
     // Test cases for different scrubbing scenarios with fast-forward logic
-    
+
     it('should enter fast-forward when jumping from small to large gap in activity', async () => {
       const result = await page.evaluate(`
         const { Replayer, ReplayerEvents, EventType, IncrementalSource } = rrweb;
@@ -1387,7 +1387,7 @@ describe('replayer', function () {
         });
       `);
 
-       // Should trigger fast-forward when jumping into the large gap
+      // Should trigger fast-forward when jumping into the large gap
       expect((result as any).skipStartEmitted).toBe(true);
       expect((result as any).skipStartPayload).toBeTruthy();
       expect((result as any).skipStartPayload.speed).toBeGreaterThan(1);
@@ -1507,7 +1507,9 @@ describe('replayer', function () {
       expect((result as any).skipStartCount).toBe(1); // Should trigger reevaluation
       expect((result as any).firstGapSpeed).toBeGreaterThan(1);
       expect((result as any).secondGapSpeed).toBeGreaterThan(1);
-      expect((result as any).secondGapSpeed).toBeGreaterThan((result as any).firstGapSpeed); // Bigger gap -> higher speed
+      expect((result as any).secondGapSpeed).toBeGreaterThan(
+        (result as any).firstGapSpeed,
+      ); // Bigger gap -> higher speed
       expect((result as any).speedServiceState).toBe('skipping');
     });
 
@@ -1560,7 +1562,6 @@ describe('replayer', function () {
       expect((result as any).skipStartEmitted).toBe(false); // Should not trigger fast-forward
       expect((result as any).speedServiceState).toBe('normal');
     });
-
 
     it('should respect inactivePeriodThreshold when scrubbing', async () => {
       const result = await page.evaluate(`
