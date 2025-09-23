@@ -2,13 +2,12 @@
  * @vitest-environment jsdom
  */
 import { vi } from 'vitest';
-import { Replayer } from '../src/replay';
 import * as replayModule from '../src/replay';
 import { EventType } from '@sentry-internal/rrweb-types';
 import type { eventWithTime } from '@sentry-internal/rrweb-types';
 
 describe('Replayer Reevaluate Fast Forward', () => {
-  let replayer: Replayer;
+  let replayer: replayModule.Replayer;
 
   beforeEach(() => {
     const events: eventWithTime[] = [
@@ -23,7 +22,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
         timestamp: 2000,
       },
     ];
-    replayer = new Replayer(events, {
+    replayer = new replayModule.Replayer(events, {
       skipInactive: true,
       inactivePeriodThreshold: 10000,
       maxSpeed: 360,
