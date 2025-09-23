@@ -102,6 +102,26 @@ const mitt = mittProxy.default || mittProxy;
 
 const REPLAY_CONSOLE_PREFIX = '[replayer]';
 
+export function getCurrentEventIndex(
+  events: eventWithTime[],
+  currentEventTime: number,
+): number {
+  let left = 0,
+    right = events.length - 1;
+  let result = -1;
+
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    if (events[mid].timestamp <= currentEventTime) {
+      result = mid;
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+  return result;
+}
+
 const defaultMouseTailConfig = {
   duration: 500,
   lineCap: 'round',
@@ -651,26 +671,6 @@ export class Replayer {
     this.cache = createCache();
   }
 
-  private binarySearchEventIndex(
-    events: eventWithTime[],
-    currentEventTime: number,
-  ): number {
-    let left = 0,
-      right = events.length - 1;
-    let result = -1;
-
-    while (left <= right) {
-      const mid = Math.floor((left + right) / 2);
-      if (events[mid].timestamp <= currentEventTime) {
-        result = mid;
-        left = mid + 1;
-      } else {
-        right = mid - 1;
-      }
-    }
-    return result;
-  }
-
   private reevaluateFastForward(): void {
     if (!this.config.skipInactive) {
       return;
@@ -688,10 +688,7 @@ export class Replayer {
     const currentEventTime = firstEvent.timestamp + this.getCurrentTime();
 
     // Find current event index using binary search (O(log n))
-    const currentEventIndex = this.binarySearchEventIndex(
-      events,
-      currentEventTime,
-    );
+    const currentEventIndex = getCurrentEventIndex(events, currentEventTime);
     if (currentEventIndex === -1) {
       return;
     }
