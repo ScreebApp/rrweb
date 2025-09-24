@@ -102,7 +102,7 @@ const mitt = mittProxy.default || mittProxy;
 
 const REPLAY_CONSOLE_PREFIX = '[replayer]';
 
-export function getCurrentEventIndex(
+export function getEventIndex(
   events: eventWithTime[],
   currentEventTime: number,
 ): number {
@@ -688,7 +688,7 @@ export class Replayer {
     const currentEventTime = firstEvent.timestamp + this.getCurrentTime();
 
     // Find current event index
-    const currentEventIndex = getCurrentEventIndex(events, currentEventTime);
+    const currentEventIndex = getEventIndex(events, currentEventTime);
     if (currentEventIndex === -1) {
       return;
     }

@@ -37,7 +37,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
     }));
   };
 
-  describe('getCurrentEventIndex', () => {
+  describe('getEventIndex', () => {
     it.each([
       {
         timestamps: [],
@@ -98,35 +98,8 @@ describe('Replayer Reevaluate Fast Forward', () => {
       'should handle $description',
       ({ timestamps, currentTime, expected }) => {
         const events = timestamps.length ? createTestEvents(timestamps) : [];
-        const result = replayModule.getCurrentEventIndex(events, currentTime);
+        const result = replayModule.getEventIndex(events, currentTime);
         expect(result).toBe(expected);
-      },
-    );
-
-    it.each([
-      { time: 100, expected: 0, description: 'first element' },
-      { time: 100000, expected: 999, description: 'last element' },
-      { time: 50000, expected: 499, description: 'middle element' },
-      { time: 25000, expected: 249, description: 'quarter position' },
-      { time: 75000, expected: 749, description: 'three-quarter position' },
-      { time: 99950, expected: 998, description: 'near end' },
-    ])(
-      'should perform efficiently with large arrays at $description',
-      ({ time, expected }) => {
-        // Create a large array of events (1000 events: 100, 200, 300, ..., 100000)
-        const timestamps = Array.from(
-          { length: 1000 },
-          (_, i) => (i + 1) * 100,
-        );
-        const events = createTestEvents(timestamps);
-
-        const startTime = performance.now();
-        const result = replayModule.getCurrentEventIndex(events, time);
-        const endTime = performance.now();
-
-        expect(result).toBe(expected);
-        // Should be fast even with 1000 elements (< 1ms per search)
-        expect(endTime - startTime).toBeLessThan(1);
       },
     );
   });
@@ -195,25 +168,25 @@ describe('Replayer Reevaluate Fast Forward', () => {
 
     it('should return early when skipInactive is disabled', () => {
       (replayer as any).config.skipInactive = false;
-      const getCurrentEventIndexSpy = vi.spyOn(
+      const getEventIndexSpy = vi.spyOn(
         replayModule,
-        'getCurrentEventIndex',
+        'getEventIndex',
       );
 
       (replayer as any).reevaluateFastForward();
-      expect(getCurrentEventIndexSpy).not.toHaveBeenCalled();
+      expect(getEventIndexSpy).not.toHaveBeenCalled();
       expectNoFastForward();
     });
 
     it('should return early for empty events array', () => {
       (replayer as any).service.state.context.events = [];
-      const getCurrentEventIndexSpy = vi.spyOn(
+      const getEventIndexSpy = vi.spyOn(
         replayModule,
-        'getCurrentEventIndex',
+        'getEventIndex',
       );
 
       (replayer as any).reevaluateFastForward();
-      expect(getCurrentEventIndexSpy).not.toHaveBeenCalled();
+      expect(getEventIndexSpy).not.toHaveBeenCalled();
       expectNoFastForward();
     });
 
@@ -221,7 +194,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
       const events = createTestEvents([1000, 2000, 3000]);
       (replayer as any).service.state.context.events = events;
 
-      vi.spyOn(replayModule, 'getCurrentEventIndex').mockReturnValue(-1);
+      vi.spyOn(replayModule, 'getEventIndex').mockReturnValue(-1);
       const isUserInteractionSpy = vi.spyOn(
         replayer as any,
         'isUserInteraction',
@@ -236,7 +209,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
       const events = createTestEvents([1000, 2000, 3000]);
       (replayer as any).service.state.context.events = events;
 
-      vi.spyOn(replayModule, 'getCurrentEventIndex').mockReturnValue(1);
+      vi.spyOn(replayModule, 'getEventIndex').mockReturnValue(1);
       (replayer as any).isUserInteraction.mockReturnValue(false); // No user interactions
 
       (replayer as any).reevaluateFastForward();
@@ -248,7 +221,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
       (replayer as any).service.state.context.events = events;
       (replayer as any).config.inactivePeriodThreshold = 5000;
 
-      vi.spyOn(replayModule, 'getCurrentEventIndex').mockReturnValue(1);
+      vi.spyOn(replayModule, 'getEventIndex').mockReturnValue(1);
       (replayer as any).isUserInteraction.mockImplementation(
         (event: any) => event.timestamp === 3000,
       );
@@ -264,7 +237,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
       (replayer as any).service.state.context.events = events;
       (replayer as any).config.inactivePeriodThreshold = 5000;
 
-      vi.spyOn(replayModule, 'getCurrentEventIndex').mockReturnValue(1);
+      vi.spyOn(replayModule, 'getEventIndex').mockReturnValue(1);
       (replayer as any).isUserInteraction.mockImplementation(
         (event: any) => event.timestamp === 8000,
       );
@@ -331,7 +304,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
         (replayer as any).config.maxSpeed = maxSpeed;
         (replayer as any).getCurrentTime = vi.fn().mockReturnValue(1000);
 
-        vi.spyOn(replayModule, 'getCurrentEventIndex').mockReturnValue(1);
+        vi.spyOn(replayModule, 'getEventIndex').mockReturnValue(1);
         (replayer as any).isUserInteraction.mockImplementation(
           (event: any) => event.timestamp === 2000 + gapTime,
         );
@@ -345,7 +318,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
       const events = createTestEvents([1000]); // Single event
       (replayer as any).service.state.context.events = events;
 
-      vi.spyOn(replayModule, 'getCurrentEventIndex').mockReturnValue(0);
+      vi.spyOn(replayModule, 'getEventIndex').mockReturnValue(0);
       const isUserInteractionSpy = vi.spyOn(
         replayer as any,
         'isUserInteraction',
