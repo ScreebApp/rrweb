@@ -106,7 +106,7 @@ export function getEventIndex(
   events: eventWithTime[],
   eventTime: number,
 ): number {
-  // Use binary search (O(log n)) to find the current event index
+  // Use binary search (O(log n)) to find the index of the event at or before the given time
   let result = -1;
   if (events.length === 0) {
     return result;
