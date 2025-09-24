@@ -168,10 +168,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
 
     it('should return early when skipInactive is disabled', () => {
       (replayer as any).config.skipInactive = false;
-      const getEventIndexSpy = vi.spyOn(
-        replayModule,
-        'getEventIndex',
-      );
+      const getEventIndexSpy = vi.spyOn(replayModule, 'getEventIndex');
 
       (replayer as any).reevaluateFastForward();
       expect(getEventIndexSpy).not.toHaveBeenCalled();
@@ -180,10 +177,7 @@ describe('Replayer Reevaluate Fast Forward', () => {
 
     it('should return early for empty events array', () => {
       (replayer as any).service.state.context.events = [];
-      const getEventIndexSpy = vi.spyOn(
-        replayModule,
-        'getEventIndex',
-      );
+      const getEventIndexSpy = vi.spyOn(replayModule, 'getEventIndex');
 
       (replayer as any).reevaluateFastForward();
       expect(getEventIndexSpy).not.toHaveBeenCalled();
