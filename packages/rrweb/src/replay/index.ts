@@ -104,7 +104,7 @@ const REPLAY_CONSOLE_PREFIX = '[replayer]';
 
 export function getEventIndex(
   events: eventWithTime[],
-  currentEventTime: number,
+  eventTime: number,
 ): number {
   // Use binary search (O(log n)) to find the current event index
   let result = -1;
@@ -115,7 +115,7 @@ export function getEventIndex(
     right = events.length - 1;
   while (left <= right) {
     const mid = Math.floor((left + right) / 2);
-    if (events[mid].timestamp <= currentEventTime) {
+    if (events[mid].timestamp <= eventTime) {
       result = mid;
       left = mid + 1;
     } else {
