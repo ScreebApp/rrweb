@@ -102,6 +102,29 @@ const mitt = mittProxy.default || mittProxy;
 
 const REPLAY_CONSOLE_PREFIX = '[replayer]';
 
+export function getEventIndex(
+  events: eventWithTime[],
+  eventTime: number,
+): number {
+  // Use binary search (O(log n)) to find the index of the event at or before the given time
+  let result = -1;
+  if (events.length === 0) {
+    return result;
+  }
+  let left = 0,
+    right = events.length - 1;
+  while (left <= right) {
+    const mid = Math.floor((left + right) / 2);
+    if (events[mid].timestamp <= eventTime) {
+      result = mid;
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+  return result;
+}
+
 const defaultMouseTailConfig = {
   duration: 500,
   lineCap: 'round',
@@ -482,6 +505,7 @@ export class Replayer {
   }
 
   public setConfig(config: Partial<playerConfig>) {
+    const previousSkipInactive = this.config.skipInactive;
     Object.keys(config).forEach((key) => {
       const newConfigValue = config[key as keyof playerConfig];
       (this.config as Record<keyof playerConfig, typeof newConfigValue>)[
@@ -490,6 +514,11 @@ export class Replayer {
     });
     if (!this.config.skipInactive) {
       this.backToNormal();
+    } else if (
+      previousSkipInactive === false &&
+      this.config.skipInactive === true
+    ) {
+      this.reevaluateFastForward();
     }
     if (typeof config.speed !== 'undefined') {
       this.speedService.send({
@@ -557,6 +586,12 @@ export class Replayer {
    * @param timeOffset - number
    */
   public play(timeOffset = 0) {
+    if (
+      this.config.skipInactive &&
+      this.speedService.state.matches('skipping')
+    ) {
+      this.backToNormal();
+    }
     if (this.service.state.matches('paused')) {
       this.service.send({ type: 'PLAY', payload: { timeOffset } });
     } else {
@@ -568,6 +603,9 @@ export class Replayer {
       ?.getElementsByTagName('html')[0]
       ?.classList.remove('rrweb-paused');
     this.emitter.emit(ReplayerEvents.Start);
+    if (this.config.skipInactive) {
+      this.reevaluateFastForward();
+    }
   }
 
   public pause(timeOffset?: number) {
@@ -631,6 +669,54 @@ export class Replayer {
    */
   public resetCache() {
     this.cache = createCache();
+  }
+
+  private reevaluateFastForward(): void {
+    if (!this.config.skipInactive) {
+      return;
+    }
+
+    // Clear stale state
+    this.nextUserInteractionEvent = null;
+
+    // Get current time and convert to event-relative time
+    const events = this.service.state.context.events;
+    const firstEvent = events[0];
+    if (!firstEvent) {
+      return;
+    }
+    const currentEventTime = firstEvent.timestamp + this.getCurrentTime();
+
+    // Find current event index
+    const currentEventIndex = getEventIndex(events, currentEventTime);
+    if (currentEventIndex === -1) {
+      return;
+    }
+
+    // Find next user interaction event starting from the current event index
+    const currentEvent = events[currentEventIndex];
+    const threshold =
+      this.config.inactivePeriodThreshold *
+      this.speedService.state.context.timer.speed;
+    for (let i = currentEventIndex + 1; i < events.length; i++) {
+      const event = events[i];
+      if (this.isUserInteraction(event)) {
+        const gapTime = event.timestamp - currentEvent.timestamp;
+        // Fast forward if the gap time is greater than the threshold
+        if (gapTime > threshold) {
+          this.nextUserInteractionEvent = event;
+          const payload = {
+            speed: Math.min(
+              Math.round(gapTime / SKIP_TIME_INTERVAL),
+              this.config.maxSpeed,
+            ),
+          };
+          this.speedService.send({ type: 'FAST_FORWARD', payload });
+          this.emitter.emit(ReplayerEvents.SkipStart, payload);
+        }
+        break;
+      }
+    }
   }
 
   private setupDom() {
