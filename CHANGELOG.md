@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.38.0
+
+### Various fixes & improvements
+
+- fix(replay): handle fast forwarding for arbitrary position jumps in replayer (#248) by @srest2021
+
 ## 2.37.0
 
 ### Various fixes & improvements
