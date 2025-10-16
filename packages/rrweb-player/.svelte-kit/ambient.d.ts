@@ -96,6 +96,7 @@ declare module '$env/static/private' {
 	export const npm_package_devDependencies__types_connect: string;
 	export const npm_package_keywords_1: string;
 	export const npm_package_description: string;
+	export const JAVA_HOME_25_X64: string;
 	export const NVM_DIR: string;
 	export const RELEASE_VERSION: string;
 	export const npm_package_readmeFilename: string;
@@ -342,6 +343,7 @@ declare module '$env/dynamic/private' {
 		npm_package_devDependencies__types_connect: string;
 		npm_package_keywords_1: string;
 		npm_package_description: string;
+		JAVA_HOME_25_X64: string;
 		NVM_DIR: string;
 		RELEASE_VERSION: string;
 		npm_package_readmeFilename: string;
