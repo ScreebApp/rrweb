@@ -404,6 +404,7 @@ function record<T = eventWithTime>(
             canvasManager,
             keepIframeSrcFn,
             processedNodeManager,
+            ignoreCSSAttributes,
           },
           mirror,
         });
@@ -489,6 +490,7 @@ function record<T = eventWithTime>(
         });
       },
       keepIframeSrcFn,
+      ignoreCSSAttributes,
     });
 
     if (!node) {
