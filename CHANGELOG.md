@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.39.0
+
+### Various fixes & improvements
+
+- feat(rrweb): Extend `ignoreCSSAttributes` to support inline styles (#252) by @billyvg
+- fix(rrweb-player): Remove duplicate playback ui (#251) by @billyvg
+
 ## 2.38.0
 
 ### Various fixes & improvements
