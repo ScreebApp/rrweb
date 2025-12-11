@@ -83,7 +83,7 @@ export function initMutationObserver(
   // see mutation.ts for details
   mutationBuffer.init(options);
   let mutationObserverCtor =
-    window.MutationObserver ||
+    options.win.MutationObserver ||
     /**
      * Some websites may disable MutationObserver by removing it from the window object.
      * If someone is using rrweb to build a browser extention or things like it, they
@@ -92,18 +92,18 @@ export function initMutationObserver(
      * Then they can do this to store the native MutationObserver:
      * window.__rrMutationObserver = MutationObserver
      */
-    (window as WindowWithStoredMutationObserver).__rrMutationObserver;
+    (options.win as WindowWithStoredMutationObserver).__rrMutationObserver;
   const angularZoneSymbol = (
-    window as WindowWithAngularZone
+    options.win as WindowWithAngularZone
   )?.Zone?.__symbol__?.('MutationObserver');
   if (
     angularZoneSymbol &&
-    (window as unknown as Record<string, typeof MutationObserver>)[
+    (options.win as unknown as Record<string, typeof MutationObserver>)[
       angularZoneSymbol
     ]
   ) {
     mutationObserverCtor = (
-      window as unknown as Record<string, typeof MutationObserver>
+      options.win as unknown as Record<string, typeof MutationObserver>
     )[angularZoneSymbol];
   }
   const observer = new (mutationObserverCtor as new (

@@ -2139,6 +2139,29 @@
     argparse "~1.0.9"
     string-argv "~0.3.1"
 
+"@sentry-internal/rrweb-player@2.39.0":
+  version "2.39.0"
+  resolved "https://registry.yarnpkg.com/@sentry-internal/rrweb-player/-/rrweb-player-2.39.0.tgz#b4334cf4c00c7641252bc4e7cdd73cd5ad7fff47"
+  integrity sha512-x+PUgsxgeGs6OcyyEhqv54CxrMB7Li3hC+jIjJ/FgDPy6sQ3BpA7r6y7ClVvCPL4aMkzY88jcX933qqNnYNcnQ==
+  dependencies:
+    "@sentry-internal/rrweb" "2.39.0"
+    "@sentry-internal/rrweb-packer" "2.39.0"
+    "@tsconfig/svelte" "^1.0.0"
+
+"@sentry-internal/rrweb@2.39.0":
+  version "2.39.0"
+  resolved "https://registry.yarnpkg.com/@sentry-internal/rrweb/-/rrweb-2.39.0.tgz#3cfc8eef60cb5f9b97047867d7d18640d0dba3d2"
+  integrity sha512-0SegNtlxNvmCW+kYMwCi81QbWUxjkmc2fwQlg9S2FMjoB3RDbFGIyPsfu2PbYz8mp8FmleEDFLk/Lo0KjljHEA==
+  dependencies:
+    "@sentry-internal/rrdom" "2.39.0"
+    "@sentry-internal/rrweb-snapshot" "2.39.0"
+    "@sentry-internal/rrweb-types" "2.39.0"
+    "@types/css-font-loading-module" "0.0.7"
+    "@xstate/fsm" "^1.4.0"
+    base64-arraybuffer "^1.0.1"
+    fflate "^0.4.4"
+    mitt "^3.0.0"
+
 "@sigstore/bundle@^1.1.0":
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/@sigstore/bundle/-/bundle-1.1.0.tgz#17f8d813b09348b16eeed66a8cf1c3d6bd3d04f1"

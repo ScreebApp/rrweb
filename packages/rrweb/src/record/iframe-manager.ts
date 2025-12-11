@@ -60,6 +60,7 @@ export class IframeManager implements IframeManagerInterface {
   private recordCrossOriginIframes: boolean;
 
   constructor(options: {
+    win: Window;
     mirror: Mirror;
     mutationCb: mutationCallBack;
     stylesheetManager: StylesheetManager;
@@ -77,7 +78,7 @@ export class IframeManager implements IframeManagerInterface {
     );
     this.mirror = options.mirror;
     if (this.recordCrossOriginIframes) {
-      window.addEventListener('message', this.handleMessage.bind(this));
+      options.win.addEventListener('message', this.handleMessage.bind(this));
     }
   }
 

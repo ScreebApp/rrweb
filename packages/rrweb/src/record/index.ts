@@ -327,6 +327,7 @@ function record<T = eventWithTime>(
     typeof __RRWEB_EXCLUDE_IFRAME__ === 'boolean' && __RRWEB_EXCLUDE_IFRAME__
       ? new IframeManagerNoop()
       : new IframeManager({
+          win,
           mirror,
           mutationCb: wrappedMutationEmit,
           stylesheetManager: stylesheetManager,
@@ -381,6 +382,7 @@ function record<T = eventWithTime>(
           mutationCb: wrappedMutationEmit,
           scrollCb: wrappedScrollEmit,
           bypassOptions: {
+            win,
             onMutation,
             blockClass,
             blockSelector,

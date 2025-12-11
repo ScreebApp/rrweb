@@ -1,6 +1,6 @@
 {
   "name": "@screeb/rrweb",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "description": "record and replay the web",
   "scripts": {
     "retest": "vitest run --exclude test/benchmark",
