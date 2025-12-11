@@ -74,6 +74,7 @@ import {
   adoptedStyleSheetData,
   mouseInteractionData,
   mousemoveData,
+  PointerTypes,
 } from '@sentry-internal/rrweb-types';
 import {
   polyfill,
@@ -140,12 +141,21 @@ type incrementalSnapshotEventWithTime = incrementalSnapshotEvent & {
 function indicatesTouchDevice(
   e: eventWithTime,
 ): e is incrementalSnapshotEventWithTime {
-  return (
-    e.type == EventType.IncrementalSnapshot &&
-    (e.data.source == IncrementalSource.TouchMove ||
-      (e.data.source == IncrementalSource.MouseInteraction &&
-        e.data.type == MouseInteractions.TouchStart))
-  );
+  if (e.type !== EventType.IncrementalSnapshot) {
+    return false;
+  }
+
+  const data = e.data as incrementalData | mouseInteractionData | mousemoveData;
+
+  if (
+    data.source === IncrementalSource.MouseInteraction &&
+    data.type === MouseInteractions.TouchStart
+  ) {
+    const mouseData = data as mouseInteractionData;
+    return mouseData.pointerType === PointerTypes.Touch;
+  }
+
+  return false;
 }
 
 function getPointerId(
@@ -199,11 +209,13 @@ export class Replayer {
     {
       touchActive: boolean | null;
       pointerEl: HTMLDivElement;
-      tailPositions: Array<{ x: number; y: number }>;
+      tailPositions: Array<{ x: number; y: number; t: number }>;
       pointerPosition: mouseMovePos | null;
       mouseTail: HTMLCanvasElement | null;
+      mouseTailAnimating?: boolean;
     }
   > = {};
+  private mouseTailAnimationFrame: number | null = null;
   private lastMouseDownEvent: [Node, Event] | null = null;
 
   // Keep the rootNode of the last hovered element. So  when hovering a new element, we can remove the last hovered element's :hover style.
@@ -2320,42 +2332,78 @@ export class Replayer {
       return;
     }
 
+    const now =
+      typeof performance !== 'undefined' ? performance.now() : Date.now();
+
+    pointer.tailPositions.push({ x: position.x, y: position.y, t: now });
+
+    if (this.mouseTailAnimationFrame === null) {
+      this.mouseTailAnimationFrame = requestAnimationFrame(
+        this.stepMouseTails,
+      );
+    }
+  }
+
+  private stepMouseTails = (timestamp: number) => {
     const { lineCap, lineWidth, strokeStyle, duration } =
       this.config.mouseTail === true
         ? defaultMouseTailConfig
         : Object.assign({}, defaultMouseTailConfig, this.config.mouseTail);
 
-    const draw = () => {
-      if (!pointer || !pointer.mouseTail) {
+    const maxAge =
+      duration / this.speedService.state.context.timer.speed;
+
+    let hasAnyTail = false;
+
+    Object.values(this.pointers).forEach((pointer) => {
+      if (!pointer.mouseTail) {
         return;
       }
+
       const mouseTail = pointer.mouseTail;
-
       const ctx = mouseTail.getContext('2d');
-      if (!ctx || !pointer.tailPositions.length) {
+      if (!ctx) {
         return;
       }
-      ctx.clearRect(0, 0, mouseTail.width, mouseTail.height);
-      ctx.beginPath();
-      ctx.lineWidth = lineWidth;
-      ctx.lineCap = lineCap;
-      ctx.strokeStyle = strokeStyle;
-      ctx.moveTo(pointer.tailPositions[0].x, pointer.tailPositions[0].y);
-      pointer.tailPositions.forEach((p) => ctx.lineTo(p.x, p.y));
-      ctx.stroke();
-    };
 
-    pointer.tailPositions.push(position);
-    draw();
-    setTimeout(() => {
-      if (pointerId in this.pointers) {
-        pointer.tailPositions = pointer.tailPositions.filter(
-          (p) => p !== position,
-        );
-        draw();
+      pointer.tailPositions = pointer.tailPositions.filter(
+        (p) => timestamp - p.t <= maxAge,
+      );
+
+      ctx.clearRect(0, 0, mouseTail.width, mouseTail.height);
+
+      if (pointer.tailPositions.length > 1) {
+        hasAnyTail = true;
+        ctx.lineWidth = lineWidth;
+        ctx.lineCap = lineCap;
+        ctx.strokeStyle = strokeStyle;
+
+        for (let i = 1; i < pointer.tailPositions.length; i++) {
+          const prev = pointer.tailPositions[i - 1];
+          const curr = pointer.tailPositions[i];
+          const age = (timestamp - curr.t) / maxAge;
+          const alpha = Math.max(0, 1 - age);
+          if (alpha <= 0) {
+            continue;
+          }
+          ctx.globalAlpha = alpha;
+          ctx.beginPath();
+          ctx.moveTo(prev.x, prev.y);
+          ctx.lineTo(curr.x, curr.y);
+          ctx.stroke();
+        }
+        ctx.globalAlpha = 1;
       }
-    }, duration / this.speedService.state.context.timer.speed);
-  }
+    });
+
+    if (hasAnyTail) {
+      this.mouseTailAnimationFrame = requestAnimationFrame(
+        this.stepMouseTails,
+      );
+    } else {
+      this.mouseTailAnimationFrame = null;
+    }
+  };
 
   private hoverElements(el: Element) {
     const iframeDoc = getIFrameContentDocument(this.iframe);

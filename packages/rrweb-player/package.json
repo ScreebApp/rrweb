@@ -1,6 +1,6 @@
 {
-  "name": "@screeb/rrweb-player",
-  "version": "1.0.11",
+  "name": "@sentry-internal/rrweb-player",
+  "version": "2.39.0",
   "devDependencies": {
     "@sentry-internal/rrweb-types": "2.39.0",
     "@sveltejs/adapter-auto": "^3.0.0",
