@@ -890,7 +890,9 @@ function initStyleSheetObserver(
                 id,
                 styleId,
                 removes: [
-                  { index: [...getNestedCSSRulePositions(win, thisArg), index] },
+                  {
+                    index: [...getNestedCSSRulePositions(win, thisArg), index],
+                  },
                 ],
               });
             }
@@ -1361,7 +1363,10 @@ function hasNestedCSSRule(win: IWindow, prop: CSSGroupingProp): boolean {
   return typeof win[prop] !== 'undefined';
 }
 
-function canMonkeyPatchNestedCSSRule(win: IWindow, prop: CSSGroupingProp): boolean {
+function canMonkeyPatchNestedCSSRule(
+  win: IWindow,
+  prop: CSSGroupingProp,
+): boolean {
   return Boolean(
     typeof win[prop] !== 'undefined' &&
       // Note: Generally, this check _shouldn't_ be necessary

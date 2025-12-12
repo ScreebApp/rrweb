@@ -274,8 +274,7 @@ export function createPlayerService(
               events.splice(insertionIndex, 0, event);
             }
 
-            const isSync =
-              event.timestamp < baselineTime || !timer.isActive();
+            const isSync = event.timestamp < baselineTime || !timer.isActive();
             const castFn = getCastFn(event, isSync);
             if (isSync) {
               castFn();

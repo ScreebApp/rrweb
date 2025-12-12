@@ -206,16 +206,16 @@ export function getWindowScroll(win: Window) {
 export function getWindowHeight(win: Window): number {
   return (
     win.innerHeight ||
-    (win.document.documentElement?.clientHeight) ||
-    (win.document.body?.clientHeight)
+    win.document.documentElement?.clientHeight ||
+    win.document.body?.clientHeight
   );
 }
 
 export function getWindowWidth(win: Window): number {
   return (
     win.innerWidth ||
-    (win.document.documentElement?.clientWidth) ||
-    (win.document.body?.clientWidth)
+    win.document.documentElement?.clientWidth ||
+    win.document.body?.clientWidth
   );
 }
 

@@ -1225,22 +1225,21 @@ describe('be loaded from an iframe', function (this: ISuite) {
   it('captures activity in outer frame', async () => {
     await ctx.page.frames()[1].evaluate(() => {
       // window here is the iframe window
-      const { record } = ((window as unknown) as IWindow).rrweb;
+      const { record } = (window as unknown as IWindow).rrweb;
       record({
-        emit: ((window as unknown) as IWindow).emit,
+        emit: (window as unknown as IWindow).emit,
         window: window.top as IWindow,
       });
     });
 
     expect(await ctx.page.evaluate('typeof rrweb')).toEqual('undefined');
-    await ctx.page.type('input', 'a');  // ensuring that typing in outer gets recorded by inner rrweb
+    await ctx.page.type('input', 'a'); // ensuring that typing in outer gets recorded by inner rrweb
 
     expect(ctx.events.length).toEqual(5);
 
     expect(
-      ctx.events.filter(
-        (event: eventWithTime) => event.type === EventType.Meta,
-      ).length,
+      ctx.events.filter((event: eventWithTime) => event.type === EventType.Meta)
+        .length,
     ).toEqual(1);
 
     expect(

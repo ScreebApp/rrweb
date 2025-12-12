@@ -686,13 +686,17 @@ function record<T = eventWithTime>(
       init();
     } else {
       handlers.push(
-        on('DOMContentLoaded', () => {
-          wrappedEmit({
-            type: EventType.DomContentLoaded,
-            data: {},
-          });
-          if (recordAfter === 'DOMContentLoaded') init();
-        }, win.document),
+        on(
+          'DOMContentLoaded',
+          () => {
+            wrappedEmit({
+              type: EventType.DomContentLoaded,
+              data: {},
+            });
+            if (recordAfter === 'DOMContentLoaded') init();
+          },
+          win.document,
+        ),
       );
       handlers.push(
         on(

@@ -2338,9 +2338,7 @@ export class Replayer {
     pointer.tailPositions.push({ x: position.x, y: position.y, t: now });
 
     if (this.mouseTailAnimationFrame === null) {
-      this.mouseTailAnimationFrame = requestAnimationFrame(
-        this.stepMouseTails,
-      );
+      this.mouseTailAnimationFrame = requestAnimationFrame(this.stepMouseTails);
     }
   }
 
@@ -2350,8 +2348,7 @@ export class Replayer {
         ? defaultMouseTailConfig
         : Object.assign({}, defaultMouseTailConfig, this.config.mouseTail);
 
-    const maxAge =
-      duration / this.speedService.state.context.timer.speed;
+    const maxAge = duration / this.speedService.state.context.timer.speed;
 
     let hasAnyTail = false;
 
@@ -2397,9 +2394,7 @@ export class Replayer {
     });
 
     if (hasAnyTail) {
-      this.mouseTailAnimationFrame = requestAnimationFrame(
-        this.stepMouseTails,
-      );
+      this.mouseTailAnimationFrame = requestAnimationFrame(this.stepMouseTails);
     } else {
       this.mouseTailAnimationFrame = null;
     }
